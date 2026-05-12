@@ -115,12 +115,24 @@ Restart your agent after adding the skill.
 
 ## Local Development
 
+Run the backend and frontend together:
+
+```powershell
+.\run-dev.ps1
+```
+
+Optional ports:
+
+```powershell
+.\run-dev.ps1 -BackendPort 8000 -FrontendPort 5173
+```
+
 Backend:
 
 ```bash
 cd backend
 uv sync
-uv run localkit serve
+fastapi dev main.py
 ```
 
 Frontend:

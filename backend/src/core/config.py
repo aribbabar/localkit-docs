@@ -6,13 +6,16 @@ from pathlib import Path
 
 
 def backend_root() -> Path:
-    return Path(__file__).resolve().parents[3]
+    return Path(__file__).resolve().parents[2]
 
 
 def resolve_data_dir() -> Path:
     configured = os.getenv("LOCALKIT_DATA_DIR")
     if configured:
-        return Path(configured).expanduser().resolve()
+        path = Path(configured).expanduser()
+        if not path.is_absolute():
+            path = backend_root() / path
+        return path.resolve()
     return backend_root() / ".localkit-docs"
 
 
