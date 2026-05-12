@@ -1,0 +1,13 @@
+.workspace {
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  background: var(--bg);
+  color: var(--text);
+}
+
+@media (max-width: 860px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}

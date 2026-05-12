@@ -1,0 +1,146 @@
+.sidebar {
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--text-strong);
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.brand span,
+.metricGrid span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.metricGrid div {
+  padding: 16px;
+}
+
+.metricGrid div + div {
+  border-left: 1px solid var(--border);
+}
+
+.metricGrid strong {
+  display: block;
+  color: var(--text-strong);
+  font-size: 28px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.settingsButton {
+  margin-top: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input);
+  color: var(--text-strong);
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.settingsButton:hover {
+  background: #eeeeea;
+  border-color: #cbc9c0;
+}
+
+.sourceForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sourceForm h2 {
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  gap: 10px;
+}
+
+.dropzone {
+  min-height: 118px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--input);
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  padding: 16px;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.dropzone:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.dropzone svg {
+  color: var(--accent);
+}
+
+.dropzone strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.dropzone span {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.dropzoneActive {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+@media (max-width: 860px) {
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
