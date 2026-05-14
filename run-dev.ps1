@@ -1,6 +1,7 @@
 param(
     [int]$BackendPort = 8000,
     [int]$FrontendPort = 5173,
+    [int]$BackendStartupTimeoutSeconds = 45,
     [switch]$SkipInstall
 )
 
@@ -98,6 +99,35 @@ function Start-ManagedProcess {
     return $process
 }
 
+function Wait-HttpOk {
+    param(
+        [string]$Name,
+        [string]$Url,
+        [System.Diagnostics.Process]$Process,
+        [int]$TimeoutSeconds
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ($Process.HasExited) {
+            throw "$Name exited before it was ready with code $($Process.ExitCode)."
+        }
+
+        try {
+            $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 2
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+                Write-Host "[$Name] ready"
+                return
+            }
+        }
+        catch {
+            Start-Sleep -Milliseconds 500
+        }
+    }
+
+    throw "$Name did not become ready at $Url within $TimeoutSeconds seconds."
+}
+
 function Stop-ManagedProcesses {
     foreach ($process in $Processes) {
         if ($process -and -not $process.HasExited) {
@@ -126,7 +156,7 @@ if (-not $SkipInstall -and -not (Test-Path (Join-Path $FrontendDir "node_modules
     Invoke-Checked "frontend" $FrontendDir "`"$npmPath`" install"
 }
 
-$backendCommand = "fastapi dev main.py --host 127.0.0.1 --port $BackendPort"
+$backendCommand = "fastapi run main.py --host 127.0.0.1 --port $BackendPort"
 $frontendCommand = "`"$npmPath`" run dev -- --host 127.0.0.1 --port $FrontendPort"
 
 Write-Host "Starting LocalKit Docs..."
@@ -135,7 +165,10 @@ Write-Host "Frontend: http://127.0.0.1:$FrontendPort"
 Write-Host "Press Ctrl+C to stop both processes."
 
 try {
-    $Processes += Start-ManagedProcess "backend" $BackendDir $backendCommand $backendEnvironment
+    $backendProcess = Start-ManagedProcess "backend" $BackendDir $backendCommand $backendEnvironment
+    $Processes += $backendProcess
+    Wait-HttpOk "backend" "http://127.0.0.1:$BackendPort/health" $backendProcess $BackendStartupTimeoutSeconds
+
     $Processes += Start-ManagedProcess "frontend" $FrontendDir $frontendCommand @{
         VITE_LOCALKIT_API_URL = "http://127.0.0.1:$BackendPort"
     }

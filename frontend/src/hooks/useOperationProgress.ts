@@ -2,26 +2,42 @@ import { useEffect, useRef, useState } from 'react'
 import { fetchOperation } from '../api/docsApi'
 import type { OperationProgress } from '../types'
 
+const ACTIVE_OPERATION_KEY = 'localkit.activeOperation'
+const ACTIVE_OPERATION_TTL_MS = 12 * 60 * 60 * 1000
+
 export function useOperationProgress() {
   const [activeProgress, setActiveProgress] = useState<OperationProgress | null>(null)
   const progressTimeoutRef = useRef<number | null>(null)
+  const progressIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
+    const savedOperationId = readSavedOperationId()
+    if (savedOperationId) {
+      startProgressPolling(savedOperationId)
+    }
+
     return () => {
       if (progressTimeoutRef.current !== null) window.clearTimeout(progressTimeoutRef.current)
+      if (progressIntervalRef.current !== null) window.clearInterval(progressIntervalRef.current)
     }
   }, [])
 
-  async function refreshOperation(operationId: string): Promise<void> {
+  async function refreshOperation(operationId: string): Promise<OperationProgress | null> {
     const progress = await fetchOperation(operationId)
-    if (progress) setActiveProgress(progress)
+    if (!progress) return null
+
+    setActiveProgress(progress)
+    if (isTerminalProgress(progress)) {
+      clearSavedOperation(operationId)
+      clearProgressInterval()
+    }
+    return progress
   }
 
   function startProgressPolling(operationId: string): () => Promise<void> {
-    if (progressTimeoutRef.current !== null) {
-      window.clearTimeout(progressTimeoutRef.current)
-      progressTimeoutRef.current = null
-    }
+    clearProgressTimeout()
+    clearProgressInterval()
+    saveOperationId(operationId)
 
     setActiveProgress({
       operation_id: operationId,
@@ -33,21 +49,98 @@ export function useOperationProgress() {
     })
     void refreshOperation(operationId)
 
-    const intervalId = window.setInterval(() => {
+    progressIntervalRef.current = window.setInterval(() => {
       void refreshOperation(operationId)
     }, 500)
 
     return async () => {
-      window.clearInterval(intervalId)
-      await refreshOperation(operationId)
-      progressTimeoutRef.current = window.setTimeout(() => {
-        setActiveProgress((current) =>
-          current?.operation_id === operationId ? null : current,
-        )
-        progressTimeoutRef.current = null
-      }, 3500)
+      clearProgressInterval()
+      const progress = await refreshOperation(operationId)
+      if (!progress || isTerminalProgress(progress)) {
+        clearSavedOperation(operationId)
+      }
+      scheduleProgressClear(operationId)
     }
   }
 
-  return { activeProgress, startProgressPolling }
+  async function waitForOperation(operationId: string): Promise<OperationProgress> {
+    while (true) {
+      const progress = await refreshOperation(operationId)
+      if (progress && isTerminalProgress(progress)) {
+        if (progress.status === 'failed') {
+          throw new Error(progress.message ?? 'Operation failed')
+        }
+        return progress
+      }
+      await sleep(500)
+    }
+  }
+
+  function clearProgressInterval() {
+    if (progressIntervalRef.current !== null) {
+      window.clearInterval(progressIntervalRef.current)
+      progressIntervalRef.current = null
+    }
+  }
+
+  function clearProgressTimeout() {
+    if (progressTimeoutRef.current !== null) {
+      window.clearTimeout(progressTimeoutRef.current)
+      progressTimeoutRef.current = null
+    }
+  }
+
+  function scheduleProgressClear(operationId: string) {
+    clearProgressTimeout()
+    progressTimeoutRef.current = window.setTimeout(() => {
+      setActiveProgress((current) =>
+        current?.operation_id === operationId ? null : current,
+      )
+      progressTimeoutRef.current = null
+    }, 3500)
+  }
+
+  return { activeProgress, startProgressPolling, waitForOperation }
+}
+
+function isTerminalProgress(progress: OperationProgress): boolean {
+  return progress.status === 'completed' || progress.status === 'failed'
+}
+
+function saveOperationId(operationId: string) {
+  window.localStorage.setItem(
+    ACTIVE_OPERATION_KEY,
+    JSON.stringify({ operationId, savedAt: Date.now() }),
+  )
+}
+
+function readSavedOperationId(): string | null {
+  try {
+    const value = window.localStorage.getItem(ACTIVE_OPERATION_KEY)
+    if (!value) return null
+    const parsed = JSON.parse(value) as { operationId?: unknown; savedAt?: unknown }
+    if (typeof parsed.operationId !== 'string' || typeof parsed.savedAt !== 'number') {
+      window.localStorage.removeItem(ACTIVE_OPERATION_KEY)
+      return null
+    }
+    if (Date.now() - parsed.savedAt > ACTIVE_OPERATION_TTL_MS) {
+      window.localStorage.removeItem(ACTIVE_OPERATION_KEY)
+      return null
+    }
+    return parsed.operationId
+  } catch {
+    window.localStorage.removeItem(ACTIVE_OPERATION_KEY)
+    return null
+  }
+}
+
+function clearSavedOperation(operationId: string) {
+  const savedOperationId = readSavedOperationId()
+  if (savedOperationId === operationId) {
+    window.localStorage.removeItem(ACTIVE_OPERATION_KEY)
+  }
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 }

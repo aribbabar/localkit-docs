@@ -72,7 +72,8 @@ function App() {
   const [busy, setBusy] = useState<BusyTask>(null)
   const [message, setMessage] = useState('Backend not checked')
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const { activeProgress, startProgressPolling } = useOperationProgress()
+  const settledOperationRef = useRef<string | null>(null)
+  const { activeProgress, startProgressPolling, waitForOperation } = useOperationProgress()
   const selectedSourceId = route.page === 'source' ? route.sourceId : null
 
   const indexedSources = useMemo(
@@ -87,6 +88,16 @@ function App() {
   useEffect(() => {
     refreshSources()
   }, [])
+
+  useEffect(() => {
+    if (!activeProgress || !['completed', 'failed'].includes(activeProgress.status ?? '')) return
+    if (settledOperationRef.current === activeProgress.operation_id) return
+    settledOperationRef.current = activeProgress.operation_id
+    void refreshSources()
+    if (route.page === 'source') {
+      void fetchSourceDocuments(route.sourceId).then(setDocuments).catch(() => undefined)
+    }
+  }, [activeProgress?.operation_id, activeProgress?.status])
 
   useEffect(() => {
     function handlePopState() {
@@ -231,6 +242,7 @@ function App() {
           maxDepth,
           operationId,
         })
+        await waitForOperation(operationId)
         setRemoteUrl('')
         setRemoteName('')
         await refreshSources()
@@ -254,6 +266,7 @@ function App() {
       const stopProgress = startProgressPolling(operationId)
       try {
         await reindexSource(sourceId, operationId)
+        await waitForOperation(operationId)
         await refreshSources()
       } finally {
         await stopProgress()

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,6 +53,8 @@ async def crawl_remote(
     options: CrawlOptions,
     progress: ProgressCallback | None = None,
 ) -> CrawlResult:
+    ensure_subprocess_capable_event_loop()
+
     try:
         from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
         from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
@@ -216,6 +220,20 @@ async def crawl_remote(
             }
         )
     return CrawlResult(project_dir=output_dir, pages_dir=pages_dir, saved_pages=saved_pages)
+
+
+def ensure_subprocess_capable_event_loop() -> None:
+    if sys.platform != "win32":
+        return
+
+    loop = asyncio.get_running_loop()
+    selector_loop = getattr(asyncio, "SelectorEventLoop", None)
+    if selector_loop is not None and isinstance(loop, selector_loop):
+        raise RuntimeError(
+            "Remote docs crawling requires a Windows Proactor event loop because Playwright "
+            "starts browser subprocesses. Start the backend with `fastapi run`, `localkit serve`, "
+            "or `run-dev.ps1`; `fastapi dev` reload mode uses a selector loop on this setup."
+        )
 
 
 def normalize_url(raw_url: str) -> str:

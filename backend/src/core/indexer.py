@@ -36,6 +36,18 @@ class Indexer:
             raise ValueError(f"Stored source path does not exist: {root}")
 
         self.sources.set_status(source.id, "indexing")
+        try:
+            return await self._index_source(source, root, progress=progress)
+        except Exception:
+            self.sources.set_status(source.id, "failed")
+            raise
+
+    async def _index_source(
+        self,
+        source: SourceRecord,
+        root: Path,
+        progress: ProgressCallback | None = None,
+    ) -> dict[str, int]:
         self.documents.replace_source_chunks(source.id)
         self.vector_store.delete_source(source.id)
 

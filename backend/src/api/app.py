@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import shutil
+from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -38,6 +41,7 @@ def create_app() -> FastAPI:
     indexer = Indexer(container.sources, container.documents, embeddings, vector_store)
     search_service = SearchService(embeddings, vector_store, container.documents, container.sources)
     operations: dict[str, dict[str, object]] = {}
+    operation_tasks: dict[str, asyncio.Task[None]] = {}
 
     def report_for(operation_id: str | None) -> ProgressCallback | None:
         if not operation_id:
@@ -52,6 +56,33 @@ def create_app() -> FastAPI:
             {"phase": "queued", "status": "running", "message": "Starting", "current": 0},
         )
         return report
+
+    def start_background_operation(
+        operation_id: str,
+        work: CallableWithProgress,
+    ) -> None:
+        existing_task = operation_tasks.get(operation_id)
+        if existing_task and not existing_task.done():
+            return
+
+        progress = report_for(operation_id)
+
+        async def run() -> None:
+            try:
+                await work(progress)
+            except Exception as exc:  # noqa: BLE001 - operation status is the public error surface.
+                if progress:
+                    progress({"phase": "failed", "status": "failed", "message": str(exc)})
+
+        task = asyncio.create_task(run())
+        operation_tasks[operation_id] = task
+
+        def discard_task(completed: asyncio.Task[None]) -> None:
+            operation_tasks.pop(operation_id, None)
+            with suppress(asyncio.CancelledError):
+                completed.exception()
+
+        task.add_done_callback(discard_task)
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -195,6 +226,28 @@ def create_app() -> FastAPI:
     @app.post("/sources/remote")
     async def add_remote(request: RemoteSourceRequest) -> dict[str, object]:
         progress = report_for(request.operation_id)
+        if request.operation_id:
+            operation_id = request.operation_id
+
+            async def run_remote(progress: ProgressCallback | None) -> None:
+                source = await source_service.add_remote(
+                    url=request.url,
+                    name=request.name,
+                    include=request.include,
+                    exclude=request.exclude,
+                    max_depth=request.max_depth,
+                    max_pages=request.max_pages,
+                    delay_seconds=request.delay_seconds,
+                    progress=progress,
+                )
+                if request.index:
+                    await indexer.index_source(source, progress=progress)
+                elif progress:
+                    progress({"phase": "complete", "status": "completed", "message": "Remote docs crawled"})
+
+            start_background_operation(operation_id, run_remote)
+            return {"operation_id": operation_id, "accepted": True}
+
         try:
             source = await source_service.add_remote(
                 url=request.url,
@@ -223,6 +276,12 @@ def create_app() -> FastAPI:
             if progress:
                 progress({"phase": "failed", "status": "failed", "message": "Source not found."})
             raise HTTPException(status_code=404, detail="Source not found.")
+        if operation_id:
+            async def run_index(progress: ProgressCallback | None) -> None:
+                await indexer.index_source(source, progress=progress)
+
+            start_background_operation(operation_id, run_index)
+            return {"operation_id": operation_id, "accepted": True}
         stats = await indexer.index_source(source, progress=progress)
         return {"source": source.__dict__, "stats": stats}
 
@@ -242,6 +301,9 @@ def create_app() -> FastAPI:
         return {"results": [result.__dict__ for result in results]}
 
     return app
+
+
+CallableWithProgress = Callable[[ProgressCallback | None], Awaitable[None]]
 
 
 def update_operation(
