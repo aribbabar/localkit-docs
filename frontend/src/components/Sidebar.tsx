@@ -1,5 +1,5 @@
 import type { DragEvent, FormEvent } from 'react'
-import { Settings } from 'lucide-react'
+import { FiSettings } from 'react-icons/fi'
 import { ProgressPanel } from './ProgressPanel'
 import { Brand } from './sidebar/Brand'
 import { LocalDocsForm } from './sidebar/LocalDocsForm'
@@ -64,7 +64,7 @@ export function Sidebar(props: SidebarProps) {
         setRemoteUrl={props.setRemoteUrl}
       />
       <button className={styles.settingsButton} type="button" onClick={props.onOpenSettings}>
-        <Settings size={16} />
+        <FiSettings size={16} />
         Settings
       </button>
     </aside>

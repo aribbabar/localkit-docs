@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { Save } from 'lucide-react'
+import { FiSave } from 'react-icons/fi'
 import controls from '../controls.module.css'
 import styles from '../MainPanel.module.css'
 
@@ -50,7 +50,7 @@ export function SettingsPanel({
           </label>
         </section>
         <button className={controls.button} type="submit">
-          <Save size={16} />
+          <FiSave size={16} />
           Save settings
         </button>
       </form>

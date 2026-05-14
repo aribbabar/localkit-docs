@@ -33,9 +33,9 @@
 
 .ghost:hover:not(:disabled),
 .iconButton:hover:not(:disabled) {
-  background: #eeeeea;
+  background: var(--input-hover);
   color: var(--text-strong);
-  border-color: #cbc9c0;
+  border-color: var(--border-strong);
 }
 
 .iconButton {

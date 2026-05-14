@@ -1,10 +1,12 @@
-import { Loader2, RefreshCw, Trash2 } from 'lucide-react'
+import { FiArrowRight, FiClock, FiFolder, FiRefreshCw, FiServer, FiTrash2 } from 'react-icons/fi'
+import { ImSpinner2 } from 'react-icons/im'
 import { classNames } from '../../utils/classNames'
 import type { BusyTask, Source } from '../../types'
 import controls from '../controls.module.css'
 import styles from '../MainPanel.module.css'
 
 type SourceListProps = {
+  activeSources?: number
   busy: BusyTask
   onReindex: (sourceId: string) => void
   onRemove: (sourceId: string) => void
@@ -12,14 +14,38 @@ type SourceListProps = {
   sources: Source[]
 }
 
-export function SourceList({ busy, onReindex, onRemove, onSelectSource, sources }: SourceListProps) {
+function getSourceLabel(source: Source) {
+  return source.kind === 'local' ? 'Local folder' : 'Remote site'
+}
+
+function getStatusLabel(status: string) {
+  if (status === 'indexed') return 'Ready'
+  if (status === 'indexing') return 'Indexing'
+  if (status === 'pending') return 'Pending'
+  return status
+}
+
+export function SourceList({
+  activeSources = 0,
+  busy,
+  onReindex,
+  onRemove,
+  onSelectSource,
+  sources,
+}: SourceListProps) {
   return (
-    <section className={styles.section}>
+    <section className={classNames(styles.section, styles.sourceSection)}>
       <header>
-        <h2>Sources</h2>
-        <span>{sources.length} total</span>
+        <div>
+          <h2>Sources</h2>
+          <span>
+            {activeSources > 0
+              ? `${activeSources} updating, ${sources.length} total`
+              : `${sources.length} total`}
+          </span>
+        </div>
       </header>
-      <div className={styles.list}>
+      <div className={classNames(styles.list, styles.sourceGrid)}>
         {sources.map((source) => (
           <article className={styles.sourceRow} key={source.id}>
             <button
@@ -28,14 +54,19 @@ export function SourceList({ busy, onReindex, onRemove, onSelectSource, sources 
               onClick={() => onSelectSource(source.id)}
               disabled={busy !== null}
             >
+              <span className={styles.sourceIcon} aria-hidden="true">
+                {source.kind === 'local' ? <FiFolder /> : <FiServer />}
+              </span>
               <span className={styles.sourceCopy}>
                 <strong>{source.name}</strong>
                 <span>{source.origin}</span>
+                <small>{getSourceLabel(source)}</small>
               </span>
               <span className={classNames(styles.status, styles[source.status])}>
                 <span className={styles.statusDot} />
-                {source.status}
+                {getStatusLabel(source.status)}
               </span>
+              <FiArrowRight className={styles.sourceArrow} aria-hidden="true" />
             </button>
             <div className={styles.rowActions}>
               <button
@@ -46,9 +77,9 @@ export function SourceList({ busy, onReindex, onRemove, onSelectSource, sources 
                 disabled={busy !== null}
               >
                 {busy === `index:${source.id}` ? (
-                  <Loader2 className={controls.spin} size={16} />
+                  <ImSpinner2 className={controls.spin} size={16} />
                 ) : (
-                  <RefreshCw size={16} />
+                  <FiRefreshCw size={16} />
                 )}
               </button>
               <button
@@ -58,12 +89,18 @@ export function SourceList({ busy, onReindex, onRemove, onSelectSource, sources 
                 onClick={() => onRemove(source.id)}
                 disabled={busy !== null}
               >
-                <Trash2 size={16} />
+                <FiTrash2 size={16} />
               </button>
             </div>
           </article>
         ))}
-        {sources.length === 0 ? <p className={styles.empty}>No sources indexed.</p> : null}
+        {sources.length === 0 ? (
+          <div className={styles.emptyState}>
+            <FiClock aria-hidden="true" />
+            <strong>No sources yet</strong>
+            <p>Add a local folder or crawl a remote docs site from the sidebar.</p>
+          </div>
+        ) : null}
       </div>
     </section>
   )

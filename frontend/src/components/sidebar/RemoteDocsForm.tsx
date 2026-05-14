@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react'
-import { Globe2, Loader2 } from 'lucide-react'
+import { FiGlobe } from 'react-icons/fi'
+import { ImSpinner2 } from 'react-icons/im'
 import type { BusyTask } from '../../types'
 import controls from '../controls.module.css'
 import styles from '../Sidebar.module.css'
@@ -80,7 +81,7 @@ export function RemoteDocsForm({
         />
       </label>
       <button className={controls.button} type="submit" disabled={busy !== null}>
-        {busy === 'remote' ? <Loader2 className={controls.spin} size={16} /> : <Globe2 size={16} />}
+        {busy === 'remote' ? <ImSpinner2 className={controls.spin} size={16} /> : <FiGlobe size={16} />}
         Crawl remote
       </button>
     </form>

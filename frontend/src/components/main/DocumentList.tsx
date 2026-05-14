@@ -1,4 +1,4 @@
-import { FileText } from 'lucide-react'
+import { FiFileText } from 'react-icons/fi'
 import { classNames } from '../../utils/classNames'
 import type { BusyTask, DocumentDetail, IndexedDocument, Source } from '../../types'
 import styles from '../MainPanel.module.css'
@@ -36,7 +36,7 @@ export function DocumentList({
             onClick={() => onOpenDocument(document.id)}
             disabled={busy !== null}
           >
-            <FileText size={16} />
+            <FiFileText size={16} />
             <span>
               <strong>{document.title || document.path}</strong>
               <small>

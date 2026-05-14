@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, FormEvent } from 'react'
-import { FolderPlus, Loader2, UploadCloud } from 'lucide-react'
+import { FiFolderPlus, FiUploadCloud } from 'react-icons/fi'
+import { ImSpinner2 } from 'react-icons/im'
 import { classNames } from '../../utils/classNames'
 import { summarizePendingFiles } from '../../utils/folderFiles'
 import type { BusyTask, FolderFile } from '../../types'
@@ -82,7 +83,7 @@ export function LocalDocsForm({
           }
         }}
       >
-        <UploadCloud size={22} />
+        <FiUploadCloud size={22} />
         <strong>
           {busy === 'upload-folder'
             ? `Adding ${uploadedFolderName || 'local docs'}`
@@ -108,9 +109,9 @@ export function LocalDocsForm({
       </label>
       <button className={controls.button} type="submit" disabled={busy !== null || folderFiles.length === 0}>
         {busy === 'upload-folder' ? (
-          <Loader2 className={controls.spin} size={16} />
+          <ImSpinner2 className={controls.spin} size={16} />
         ) : (
-          <FolderPlus size={16} />
+          <FiFolderPlus size={16} />
         )}
         Add local
       </button>

@@ -1,4 +1,5 @@
 import type { FormEvent, RefObject } from 'react'
+import { FiDatabase, FiFolder, FiRefreshCw, FiServer, FiZap } from 'react-icons/fi'
 import { DocumentList } from './main/DocumentList'
 import { Preview } from './main/Preview'
 import { ResultList } from './main/ResultList'
@@ -53,6 +54,13 @@ export function MainPanel({
   setQuery,
   sources,
 }: MainPanelProps) {
+  const indexedSources = sources.filter((source) => source.status === 'indexed').length
+  const localSources = sources.filter((source) => source.kind === 'local').length
+  const remoteSources = sources.filter((source) => source.kind === 'remote').length
+  const activeSources = sources.filter(
+    (source) => source.status === 'indexing' || source.status === 'pending',
+  ).length
+
   if (route.page === 'settings') {
     return (
       <SettingsPanel
@@ -66,10 +74,16 @@ export function MainPanel({
   if (route.page === 'home') {
     return (
       <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <div>
-            <h1>Sources</h1>
-            <p>Add documentation from the sidebar, then open a source to search it.</p>
+        <div className={styles.homeHero}>
+          <div className={styles.homeIntro}>
+            <span className={styles.eyebrow}>
+              <FiZap aria-hidden="true" />
+              Local-first docs search
+            </span>
+            <h1>Documentation index</h1>
+            <p>
+              Bring local folders and remote docs into one searchable workspace for coding agents.
+            </p>
           </div>
           <button
             className={styles.refreshButton}
@@ -77,11 +91,35 @@ export function MainPanel({
             onClick={onRefreshSources}
             disabled={busy !== null}
           >
+            <FiRefreshCw aria-hidden="true" />
             Refresh
           </button>
         </div>
+        <div className={styles.overviewGrid} aria-label="Source overview">
+          <div className={styles.overviewItem}>
+            <FiDatabase aria-hidden="true" />
+            <span>Total sources</span>
+            <strong>{sources.length}</strong>
+          </div>
+          <div className={styles.overviewItem}>
+            <FiZap aria-hidden="true" />
+            <span>Indexed</span>
+            <strong>{indexedSources}</strong>
+          </div>
+          <div className={styles.overviewItem}>
+            <FiFolder aria-hidden="true" />
+            <span>Local</span>
+            <strong>{localSources}</strong>
+          </div>
+          <div className={styles.overviewItem}>
+            <FiServer aria-hidden="true" />
+            <span>Remote</span>
+            <strong>{remoteSources}</strong>
+          </div>
+        </div>
         <SourceList
           busy={busy}
+          activeSources={activeSources}
           onReindex={onReindex}
           onRemove={onRemove}
           onSelectSource={onSelectSource}
@@ -114,6 +152,7 @@ export function MainPanel({
         <ResultList
           busy={busy}
           onOpenDocument={onOpenDocument}
+          query={query}
           results={results}
           selectedSource={selectedSource}
         />

@@ -69,8 +69,8 @@
 }
 
 .settingsButton:hover {
-  background: #eeeeea;
-  border-color: #cbc9c0;
+  background: var(--input-hover);
+  border-color: var(--border-strong);
 }
 
 .sourceForm {

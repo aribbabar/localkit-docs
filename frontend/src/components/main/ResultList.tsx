@@ -1,21 +1,35 @@
+import { FiFileText, FiSearch } from 'react-icons/fi'
+import { classNames } from '../../utils/classNames'
 import type { BusyTask, SearchResult, Source } from '../../types'
 import styles from '../MainPanel.module.css'
 
 type ResultListProps = {
   busy: BusyTask
   onOpenDocument: (documentId: string) => void
+  query: string
   results: SearchResult[]
   selectedSource: Source | null
 }
 
-export function ResultList({ busy, onOpenDocument, results, selectedSource }: ResultListProps) {
+function getRelevanceLabel(score: number) {
+  if (score >= 0.72) return 'Strong'
+  if (score >= 0.48) return 'Good'
+  return 'Related'
+}
+
+export function ResultList({ busy, onOpenDocument, query, results, selectedSource }: ResultListProps) {
+  const hasQuery = query.trim().length > 0
+
   return (
-    <section className={styles.section}>
+    <section className={classNames(styles.section, styles.resultsSection)}>
       <header>
-        <h2>Results</h2>
-        <span>
-          {selectedSource ? `${results.length} matches in selected source` : `${results.length} matches`}
-        </span>
+        <div>
+          <h2>Results</h2>
+          <span>
+            {selectedSource ? `${results.length} matches in selected source` : `${results.length} matches`}
+          </span>
+        </div>
+        {hasQuery ? <span className={styles.queryPill}>{query}</span> : null}
       </header>
       <div className={styles.list}>
         {results.map((result) => (
@@ -27,14 +41,32 @@ export function ResultList({ busy, onOpenDocument, results, selectedSource }: Re
             disabled={busy !== null}
           >
             <div className={styles.resultMeta}>
-              <strong>{result.title || result.path}</strong>
-              <span>{result.path}</span>
-              <b>{result.score.toFixed(3)}</b>
+              <span className={styles.resultIcon} aria-hidden="true">
+                <FiFileText />
+              </span>
+              <span>
+                <strong>{result.title || result.path}</strong>
+                <small>{result.path}</small>
+              </span>
+              <b title={`Score ${result.score.toFixed(3)}`}>
+                {getRelevanceLabel(result.score)}
+                <span style={{ width: `${Math.max(12, Math.min(100, result.score * 100))}%` }} />
+              </b>
             </div>
             <p>{result.text}</p>
           </button>
         ))}
-        {results.length === 0 ? <p className={styles.empty}>No search results.</p> : null}
+        {results.length === 0 ? (
+          <div className={styles.emptyState}>
+            <FiSearch aria-hidden="true" />
+            <strong>{hasQuery ? 'No matches yet' : 'Search this source'}</strong>
+            <p>
+              {hasQuery
+                ? 'Try a more specific function, error message, or configuration term.'
+                : 'Ask a concrete docs question to see ranked answer excerpts here.'}
+            </p>
+          </div>
+        ) : null}
       </div>
     </section>
   )
