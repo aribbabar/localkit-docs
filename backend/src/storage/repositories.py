@@ -91,6 +91,15 @@ class SourceRepository:
             source = session.get(Source, source_id)
         return _model_to_source(source) if source else None
 
+    def find_by_name(self, name: str) -> SourceRecord | None:
+        normalized_name = name.strip().lower()
+        with self.database.session() as session:
+            source = session.exec(select(Source).where(func.lower(Source.name) == normalized_name)).first()
+        return _model_to_source(source) if source else None
+
+    def resolve(self, source_id_or_name: str) -> SourceRecord | None:
+        return self.get(source_id_or_name) or self.find_by_name(source_id_or_name)
+
     def set_status(self, source_id: str, status: str) -> None:
         with self.database.session() as session:
             source = session.get(Source, source_id)

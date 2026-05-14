@@ -86,12 +86,17 @@ def index_source(source_id: Annotated[str, typer.Argument(help="Source id to ind
 
 @app.command("search")
 def search(
+    docs: Annotated[str, typer.Argument(help="Docs source name or id to search.")],
     query: Annotated[str, typer.Argument(help="Natural language search query.")],
     limit: Annotated[int, typer.Option("--limit", "-l")] = 8,
-    source_id: Annotated[str | None, typer.Option("--source-id")] = None,
 ) -> None:
-    _, _, _, search_service, _ = _services()
-    results = asyncio.run(search_service.search(query, limit=limit, source_id=source_id))
+    container, _, _, search_service, _ = _services()
+    source = container.sources.resolve(docs)
+    if not source:
+        raise typer.BadParameter(f"Docs source not found by name or id: {docs}")
+    resolved_source_id = source.id
+    search_query = query
+    results = asyncio.run(search_service.search(search_query, limit=limit, source_id=resolved_source_id))
     for index, result in enumerate(results, start=1):
         typer.echo(f"\n{index}. {result.title or result.path}  score={result.score:.3f}")
         typer.echo(f"   {result.path} ({result.source_id})")
