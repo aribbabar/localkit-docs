@@ -22,7 +22,7 @@ def _services():
     vector_store = build_vector_store(container)
     source_service = SourceService(container.sources, container.settings.sources_dir)
     indexer = Indexer(container.sources, container.documents, embeddings, vector_store)
-    search = SearchService(embeddings, vector_store)
+    search = SearchService(embeddings, vector_store, container.documents, container.sources)
     return container, source_service, indexer, search, vector_store
 
 

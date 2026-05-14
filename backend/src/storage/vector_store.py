@@ -24,7 +24,10 @@ class ChromaVectorStore:
 
         persist_dir.mkdir(parents=True, exist_ok=True)
         self.client = chromadb.PersistentClient(path=str(persist_dir))
-        self.collection = self.client.get_or_create_collection(collection_name)
+        self.collection = self.client.get_or_create_collection(
+            collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
 
     def delete_source(self, source_id: str) -> None:
         self.collection.delete(where={"source_id": source_id})
@@ -45,8 +48,14 @@ class ChromaVectorStore:
             metadatas=metadatas,
         )
 
-    def search(self, embedding: list[float], limit: int = 8, source_id: str | None = None) -> list[VectorSearchHit]:
-        where = {"source_id": source_id} if source_id else None
+    def search(
+        self,
+        embedding: list[float],
+        limit: int = 8,
+        source_id: str | None = None,
+        embedding_model: str | None = None,
+    ) -> list[VectorSearchHit]:
+        where = _metadata_where(source_id, embedding_model)
         results = self.collection.query(
             query_embeddings=[embedding],
             n_results=limit,
@@ -96,11 +105,19 @@ class JsonVectorStore:
             }
         self._save(list(rows.values()))
 
-    def search(self, embedding: list[float], limit: int = 8, source_id: str | None = None) -> list[VectorSearchHit]:
+    def search(
+        self,
+        embedding: list[float],
+        limit: int = 8,
+        source_id: str | None = None,
+        embedding_model: str | None = None,
+    ) -> list[VectorSearchHit]:
         hits: list[VectorSearchHit] = []
         for row in self._load():
             metadata = row["metadata"]
             if source_id and metadata.get("source_id") != source_id:
+                continue
+            if embedding_model and metadata.get("embedding_model") != embedding_model:
                 continue
             hits.append(
                 VectorSearchHit(
@@ -130,3 +147,16 @@ def cosine_similarity(left: list[float], right: list[float]) -> float:
     if left_norm == 0 or right_norm == 0:
         return 0.0
     return dot / (left_norm * right_norm)
+
+
+def _metadata_where(source_id: str | None, embedding_model: str | None) -> dict[str, Any] | None:
+    clauses: list[dict[str, str]] = []
+    if source_id:
+        clauses.append({"source_id": source_id})
+    if embedding_model:
+        clauses.append({"embedding_model": embedding_model})
+    if not clauses:
+        return None
+    if len(clauses) == 1:
+        return clauses[0]
+    return {"$and": clauses}

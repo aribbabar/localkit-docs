@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from hashlib import sha256
 from pathlib import Path
+from typing import Any
 
 from core.ids import stable_id
 from core.progress import ProgressCallback
@@ -41,6 +42,8 @@ class Indexer:
         chunk_ids: list[str] = []
         chunk_texts: list[str] = []
         metadatas: list[dict[str, str | int]] = []
+        document_records: list[dict[str, Any]] = []
+        chunk_records: list[dict[str, Any]] = []
         document_count = 0
         file_paths = list(iter_indexable_files(root))
         if progress:
@@ -71,7 +74,15 @@ class Indexer:
             content_hash = sha256(text.encode("utf-8")).hexdigest()
             document_id = stable_id(source.id, relative_path, content_hash)
             title = infer_title(text, relative_path)
-            self.documents.add_document(document_id, source.id, relative_path, title, content_hash)
+            document_records.append(
+                {
+                    "id": document_id,
+                    "source_id": source.id,
+                    "path": relative_path,
+                    "title": title,
+                    "content_hash": content_hash,
+                }
+            )
             document_count += 1
 
             for chunk in chunk_text(text):
@@ -82,14 +93,17 @@ class Indexer:
                     "path": relative_path,
                     "title": title,
                     "ordinal": chunk.ordinal,
+                    "embedding_model": self.embeddings.identity,
                 }
-                self.documents.add_chunk(
-                    chunk_id=chunk_id,
-                    document_id=document_id,
-                    source_id=source.id,
-                    ordinal=chunk.ordinal,
-                    text=chunk.text,
-                    metadata=metadata,
+                chunk_records.append(
+                    {
+                        "id": chunk_id,
+                        "document_id": document_id,
+                        "source_id": source.id,
+                        "ordinal": chunk.ordinal,
+                        "text": chunk.text,
+                        "metadata": metadata,
+                    }
                 )
                 chunk_ids.append(chunk_id)
                 chunk_texts.append(chunk.text)
@@ -105,6 +119,28 @@ class Indexer:
                         "current_item": relative_path,
                     }
                 )
+
+        if progress:
+            progress(
+                {
+                    "phase": "store",
+                    "status": "running",
+                    "message": "Storing chunk metadata and text index",
+                    "current": 0,
+                    "total": len(chunk_records),
+                }
+            )
+        self.documents.add_index_records(document_records, chunk_records)
+        if progress:
+            progress(
+                {
+                    "phase": "store",
+                    "status": "running",
+                    "message": "Stored chunk metadata and text index",
+                    "current": len(chunk_records),
+                    "total": len(chunk_records),
+                }
+            )
 
         for start in range(0, len(chunk_texts), 32):
             end = start + 32

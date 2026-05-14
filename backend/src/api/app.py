@@ -36,7 +36,7 @@ def create_app() -> FastAPI:
     vector_store = build_vector_store(container)
     source_service = SourceService(container.sources, container.settings.sources_dir)
     indexer = Indexer(container.sources, container.documents, embeddings, vector_store)
-    search_service = SearchService(embeddings, vector_store)
+    search_service = SearchService(embeddings, vector_store, container.documents, container.sources)
     operations: dict[str, dict[str, object]] = {}
 
     def report_for(operation_id: str | None) -> ProgressCallback | None:

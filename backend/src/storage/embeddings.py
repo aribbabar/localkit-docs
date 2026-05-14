@@ -8,6 +8,10 @@ import httpx
 
 
 class EmbeddingProvider(ABC):
+    @property
+    def identity(self) -> str:
+        return self.__class__.__name__
+
     @abstractmethod
     async def embed(self, texts: list[str]) -> list[list[float]]:
         raise NotImplementedError
@@ -18,13 +22,17 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         self.base_url = base_url.rstrip("/")
         self.model = model
 
+    @property
+    def identity(self) -> str:
+        return f"ollama:{self.model}"
+
     async def embed(self, texts: list[str]) -> list[list[float]]:
         embeddings: list[list[float]] = []
         async with httpx.AsyncClient(timeout=60) as client:
             for text in texts:
                 response = await client.post(
                     f"{self.base_url}/api/embeddings",
-                    json={"model": self.model, "prompt": text},
+                    json={"model": self.model, "prompt": _normalize_embedding_text(text)},
                 )
                 response.raise_for_status()
                 payload = response.json()
@@ -38,14 +46,22 @@ class DeterministicEmbeddingProvider(EmbeddingProvider):
     def __init__(self, dimensions: int = 64) -> None:
         self.dimensions = dimensions
 
+    @property
+    def identity(self) -> str:
+        return f"deterministic:{self.dimensions}"
+
     async def embed(self, texts: list[str]) -> list[list[float]]:
         return [self._embed_one(text) for text in texts]
 
     def _embed_one(self, text: str) -> list[float]:
         vector = [0.0] * self.dimensions
-        for token in text.lower().split():
+        for token in _normalize_embedding_text(text).lower().split():
             digest = hashlib.sha256(token.encode("utf-8")).digest()
             index = int.from_bytes(digest[:2], "big") % self.dimensions
             vector[index] += 1.0
         norm = math.sqrt(sum(value * value for value in vector)) or 1.0
         return [value / norm for value in vector]
+
+
+def _normalize_embedding_text(text: str) -> str:
+    return text.replace("\n", " ")

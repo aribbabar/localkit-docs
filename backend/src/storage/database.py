@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, UniqueConstraint, event
+from sqlalchemy import Column, DateTime, ForeignKey, String, UniqueConstraint, event, text
 from sqlmodel import Field, Session, SQLModel, create_engine
 
 
@@ -129,6 +129,7 @@ class Database:
 
     def initialize(self) -> None:
         SQLModel.metadata.create_all(self.engine)
+        self._initialize_fts()
 
     def close(self) -> None:
         self.engine.dispose()
@@ -138,3 +139,32 @@ class Database:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
+
+    def _initialize_fts(self) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+                        chunk_id UNINDEXED,
+                        source_id UNINDEXED,
+                        document_id UNINDEXED,
+                        content,
+                        title,
+                        path,
+                        tokenize='porter unicode61'
+                    )
+                    """
+                )
+            )
+            connection.execute(text("DELETE FROM chunks_fts"))
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO chunks_fts(chunk_id, source_id, document_id, content, title, path)
+                    SELECT c.id, c.source_id, c.document_id, c.text, COALESCE(d.title, ''), d.path
+                    FROM chunks c
+                    JOIN documents d ON d.id = c.document_id
+                    """
+                )
+            )

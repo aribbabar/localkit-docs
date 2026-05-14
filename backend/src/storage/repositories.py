@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import delete, func
+from sqlalchemy import delete, func, text as sql_text
 from sqlmodel import select
 
 from storage.database import Chunk, Database, Document, Source, utc_now
@@ -29,6 +29,14 @@ class DocumentRecord:
     title: str | None
     content_hash: str
     chunk_count: int
+
+
+@dataclass(frozen=True)
+class TextSearchHit:
+    chunk_id: str
+    score: float
+    text: str
+    metadata: dict[str, Any]
 
 
 def _model_to_source(source: Source) -> SourceRecord:
@@ -92,6 +100,7 @@ class SourceRepository:
 
     def remove(self, source_id: str) -> None:
         with self.database.session() as session:
+            session.execute(sql_text("DELETE FROM chunks_fts WHERE source_id = :source_id"), {"source_id": source_id})
             session.exec(delete(Chunk).where(Chunk.source_id == source_id))
             session.exec(delete(Document).where(Document.source_id == source_id))
             source = session.get(Source, source_id)
@@ -105,6 +114,7 @@ class DocumentRepository:
 
     def replace_source_chunks(self, source_id: str) -> None:
         with self.database.session() as session:
+            session.execute(sql_text("DELETE FROM chunks_fts WHERE source_id = :source_id"), {"source_id": source_id})
             session.exec(delete(Chunk).where(Chunk.source_id == source_id))
             session.exec(delete(Document).where(Document.source_id == source_id))
 
@@ -130,6 +140,8 @@ class DocumentRepository:
         metadata: dict[str, Any],
     ) -> None:
         with self.database.session() as session:
+            title = str(metadata.get("title", ""))
+            path = str(metadata.get("path", ""))
             session.add(
                 Chunk(
                     id=chunk_id,
@@ -140,6 +152,79 @@ class DocumentRepository:
                     metadata_json=json.dumps(metadata, sort_keys=True),
                 )
             )
+            session.execute(
+                sql_text(
+                    """
+                    INSERT INTO chunks_fts(chunk_id, source_id, document_id, content, title, path)
+                    VALUES (:chunk_id, :source_id, :document_id, :content, :title, :path)
+                    """
+                ),
+                {
+                    "chunk_id": chunk_id,
+                    "source_id": source_id,
+                    "document_id": document_id,
+                    "content": text,
+                    "title": title,
+                    "path": path,
+                },
+            )
+
+    def add_index_records(
+        self,
+        documents: list[dict[str, Any]],
+        chunks: list[dict[str, Any]],
+    ) -> None:
+        if not documents and not chunks:
+            return
+
+        with self.database.session() as session:
+            if documents:
+                session.add_all(
+                    [
+                        Document(
+                            id=str(document["id"]),
+                            source_id=str(document["source_id"]),
+                            path=str(document["path"]),
+                            title=str(document["title"]),
+                            content_hash=str(document["content_hash"]),
+                        )
+                        for document in documents
+                    ]
+                )
+
+            if chunks:
+                session.add_all(
+                    [
+                        Chunk(
+                            id=str(chunk["id"]),
+                            document_id=str(chunk["document_id"]),
+                            source_id=str(chunk["source_id"]),
+                            ordinal=int(chunk["ordinal"]),
+                            text=str(chunk["text"]),
+                            metadata_json=json.dumps(chunk["metadata"], sort_keys=True),
+                        )
+                        for chunk in chunks
+                    ]
+                )
+                session.execute(
+                    sql_text(
+                        """
+                        INSERT INTO chunks_fts(chunk_id, source_id, document_id, content, title, path)
+                        VALUES (:chunk_id, :source_id, :document_id, :content, :title, :path)
+                        """
+                    ),
+                    [
+                        {
+                            "chunk_id": str(chunk["id"]),
+                            "source_id": str(chunk["source_id"]),
+                            "document_id": str(chunk["document_id"]),
+                            "content": str(chunk["text"]),
+                            "title": str(chunk["metadata"].get("title", "")),
+                            "path": str(chunk["metadata"].get("path", "")),
+                        }
+                        for chunk in chunks
+                    ],
+                )
 
     def get_chunk(self, chunk_id: str) -> dict[str, Any] | None:
         with self.database.session() as session:
@@ -207,3 +292,96 @@ class DocumentRepository:
             }
             for chunk in chunks
         ]
+
+    def search_text(
+        self,
+        query: str,
+        limit: int = 8,
+        source_id: str | None = None,
+    ) -> list[TextSearchHit]:
+        fts_query = escape_fts_query(query)
+        if fts_query == '""':
+            return []
+
+        source_filter = "AND f.source_id = :source_id" if source_id else ""
+        statement = sql_text(
+            f"""
+            SELECT
+                f.chunk_id,
+                f.source_id,
+                f.document_id,
+                f.content,
+                f.title,
+                f.path,
+                c.ordinal,
+                c.metadata_json,
+                bm25(chunks_fts, 0.0, 0.0, 0.0, 1.0, 10.0, 5.0) AS fts_score
+            FROM chunks_fts f
+            JOIN chunks c ON c.id = f.chunk_id
+            WHERE chunks_fts MATCH :query
+              {source_filter}
+            ORDER BY fts_score
+            LIMIT :limit
+            """
+        )
+        params: dict[str, object] = {"query": fts_query, "limit": limit}
+        if source_id:
+            params["source_id"] = source_id
+
+        with self.database.session() as session:
+            rows = session.execute(statement, params).mappings().all()
+
+        hits: list[TextSearchHit] = []
+        for row in rows:
+            metadata = json.loads(str(row["metadata_json"] or "{}"))
+            metadata.update(
+                {
+                    "source_id": row["source_id"],
+                    "document_id": row["document_id"],
+                    "path": row["path"] or metadata.get("path", ""),
+                    "title": row["title"] or metadata.get("title", ""),
+                    "ordinal": row["ordinal"],
+                }
+            )
+            hits.append(
+                TextSearchHit(
+                    chunk_id=str(row["chunk_id"]),
+                    score=max(0.0, -float(row["fts_score"])),
+                    text=str(row["content"] or ""),
+                    metadata=metadata,
+                )
+            )
+        return hits
+
+
+def escape_fts_query(query: str) -> str:
+    tokens: list[str] = []
+    current: list[str] = []
+    in_quote = False
+
+    for char in query:
+        if char == '"':
+            if current:
+                tokens.append("".join(current))
+                current = []
+            in_quote = not in_quote
+        elif char.isspace() and not in_quote:
+            if current:
+                tokens.append("".join(current))
+                current = []
+        else:
+            current.append(char)
+
+    if current:
+        tokens.append("".join(current))
+
+    tokens = [token.strip() for token in tokens if token.strip()]
+    if not tokens:
+        return '""'
+
+    escaped_tokens = [f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens]
+    if len(escaped_tokens) == 1:
+        return escaped_tokens[0]
+
+    exact_match = f'"{" ".join(tokens).replace(chr(34), chr(34) * 2)}"'
+    return f"{exact_match} OR {' OR '.join(escaped_tokens)}"
