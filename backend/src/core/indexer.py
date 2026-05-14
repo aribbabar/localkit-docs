@@ -87,12 +87,25 @@ class Indexer:
 
             for chunk in chunk_text(text):
                 chunk_id = stable_id(document_id, str(chunk.ordinal), chunk.text)
+                chunk_title = chunk.title or title
                 metadata = {
                     "source_id": source.id,
                     "document_id": document_id,
                     "path": relative_path,
-                    "title": title,
+                    "title": chunk_title,
                     "ordinal": chunk.ordinal,
+                    "section_path": list(chunk.path),
+                    "types": list(chunk.types),
+                    "embedding_model": self.embeddings.identity,
+                }
+                vector_metadata = {
+                    "source_id": source.id,
+                    "document_id": document_id,
+                    "path": relative_path,
+                    "title": chunk_title,
+                    "ordinal": chunk.ordinal,
+                    "section_path": " > ".join(chunk.path),
+                    "types": ",".join(chunk.types),
                     "embedding_model": self.embeddings.identity,
                 }
                 chunk_records.append(
@@ -107,7 +120,7 @@ class Indexer:
                 )
                 chunk_ids.append(chunk_id)
                 chunk_texts.append(chunk.text)
-                metadatas.append(metadata)
+                metadatas.append(vector_metadata)
             if progress:
                 progress(
                     {

@@ -160,15 +160,18 @@ class SearchService:
                 candidates.append(self._raw_candidate(primary_hit, query))
                 continue
 
-            context_ordinals = range(
-                max(0, min(cluster_ordinals) - self.context_window),
-                max(cluster_ordinals) + self.context_window + 1,
-            )
-            selected_chunks = [
-                chunks_by_ordinal[ordinal]
-                for ordinal in context_ordinals
-                if ordinal in chunks_by_ordinal
-            ]
+            selected_chunks = self._select_structured_chunks(chunks, cluster_ordinals)
+            if not selected_chunks:
+                context_ordinals = range(
+                    max(0, min(cluster_ordinals) - self.context_window),
+                    max(cluster_ordinals) + self.context_window + 1,
+                )
+                selected_chunks = [
+                    chunks_by_ordinal[ordinal]
+                    for ordinal in context_ordinals
+                    if ordinal in chunks_by_ordinal
+                ]
+
             text = _assemble_text(selected_chunks, self.max_context_chars) or primary_hit.text
             score = self._score_with_metadata_boost(primary_hit, query)
 
@@ -188,6 +191,54 @@ class SearchService:
             )
 
         return candidates
+
+    def _select_structured_chunks(
+        self,
+        chunks: list[dict[str, object]],
+        cluster_ordinals: list[int],
+    ) -> list[dict[str, object]]:
+        chunks_by_ordinal = {int(chunk["ordinal"]): chunk for chunk in chunks}
+        selected_ordinals: set[int] = set()
+
+        for ordinal in cluster_ordinals:
+            chunk = chunks_by_ordinal.get(ordinal)
+            if not chunk:
+                continue
+            section_path = _section_path(chunk)
+            if not section_path:
+                continue
+
+            selected_ordinals.add(ordinal)
+            parent_path = section_path[:-1]
+            if parent_path:
+                parent = _nearest_chunk_by_section_path(chunks, parent_path, before_ordinal=ordinal)
+                if parent:
+                    selected_ordinals.add(int(parent["ordinal"]))
+
+            siblings = [
+                candidate
+                for candidate in chunks
+                if _section_path(candidate) == section_path and int(candidate["ordinal"]) != ordinal
+            ]
+            preceding = [
+                candidate for candidate in siblings if int(candidate["ordinal"]) < ordinal
+            ][-self.context_window :]
+            subsequent = [
+                candidate for candidate in siblings if int(candidate["ordinal"]) > ordinal
+            ][: max(2, self.context_window)]
+            selected_ordinals.update(int(candidate["ordinal"]) for candidate in preceding + subsequent)
+
+            child_prefix = section_path + [""]
+            children = [
+                candidate
+                for candidate in chunks
+                if _section_path(candidate)[: len(section_path)] == section_path
+                and len(_section_path(candidate)) == len(child_prefix)
+                and int(candidate["ordinal"]) > ordinal
+            ][:3]
+            selected_ordinals.update(int(candidate["ordinal"]) for candidate in children)
+
+        return [chunks_by_ordinal[ordinal] for ordinal in sorted(selected_ordinals) if ordinal in chunks_by_ordinal]
 
     def _raw_candidate(self, hit: VectorSearchHit, query: str) -> _SearchCandidate:
         document_id = str(hit.metadata.get("document_id", ""))
@@ -219,14 +270,24 @@ class SearchService:
             source_name = source.name.lower() if source else ""
 
         boost = 0.0
-        if any(term in title for term in terms):
-            boost += 0.015
-        if any(term in path for term in terms):
-            boost += 0.008
+        title_coverage = _coverage(terms, title)
+        path_coverage = _coverage(terms, path)
+        if title_coverage:
+            boost += 0.08 * title_coverage
+        if path_coverage:
+            boost += 0.04 * path_coverage
+        if path.startswith("docs/en/framework/"):
+            boost += 0.03
+        elif "/community-articles/" in path:
+            boost -= 0.015
+        if terms:
+            text = hit.text.lower()
+            coverage = sum(1 for term in terms if term in text) / len(terms)
+            boost += min(0.025, coverage * 0.025)
         if source_name and any(term in source_name for term in terms):
             boost += 0.005
 
-        return min(score + boost, 1.0)
+        return max(0.0, score + boost)
 
     def _diversify(self, candidates: list[_SearchCandidate], limit: int) -> list[_SearchCandidate]:
         if len(candidates) <= limit:
@@ -317,8 +378,51 @@ def _metadata_int(value: object) -> int | None:
     return None
 
 
+def _section_path(chunk: dict[str, object]) -> list[str]:
+    metadata = chunk.get("metadata", {})
+    if not isinstance(metadata, dict):
+        return []
+    path = metadata.get("section_path", [])
+    if isinstance(path, list):
+        return [str(part) for part in path if str(part)]
+    return []
+
+
+def _nearest_chunk_by_section_path(
+    chunks: list[dict[str, object]],
+    section_path: list[str],
+    before_ordinal: int,
+) -> dict[str, object] | None:
+    candidates = [
+        chunk
+        for chunk in chunks
+        if _section_path(chunk) == section_path and int(chunk["ordinal"]) < before_ordinal
+    ]
+    return candidates[-1] if candidates else None
+
+
 def _query_terms(query: str) -> set[str]:
-    return {term for term in re.findall(r"[a-z0-9][a-z0-9_-]{2,}", query.lower())}
+    stopwords = {
+        "and",
+        "for",
+        "how",
+        "the",
+        "with",
+        "what",
+        "when",
+        "where",
+    }
+    return {
+        term
+        for term in re.findall(r"[a-z0-9][a-z0-9_-]{2,}", query.lower())
+        if term not in stopwords
+    }
+
+
+def _coverage(terms: set[str], value: str) -> float:
+    if not terms or not value:
+        return 0.0
+    return sum(1 for term in terms if term in value) / len(terms)
 
 
 def _text_hit_to_vector_hit(hit: TextSearchHit, score: float) -> VectorSearchHit:

@@ -97,7 +97,7 @@ def test_search_overfetches_and_assembles_adjacent_context(repositories) -> None
     assert len(results) == 1
     assert results[0].chunk_id == "chunk-2"
     assert results[0].text == "Chunk 0\n\nChunk 1\n\nChunk 2\n\nChunk 3"
-    assert results[0].score == pytest.approx(0.92)
+    assert results[0].score == pytest.approx(0.985)
 
 
 def test_search_diversifies_documents_before_lower_scoring_same_document_hits(repositories) -> None:

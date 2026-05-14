@@ -200,6 +200,7 @@ class DocumentRepository:
                         for document in documents
                     ]
                 )
+                session.flush()
 
             if chunks:
                 session.add_all(
@@ -308,8 +309,8 @@ class DocumentRepository:
         limit: int = 8,
         source_id: str | None = None,
     ) -> list[TextSearchHit]:
-        fts_query = escape_fts_query(query)
-        if fts_query == '""':
+        fts_queries = fts_query_candidates(query)
+        if not fts_queries:
             return []
 
         source_filter = "AND f.source_id = :source_id" if source_id else ""
@@ -333,12 +334,16 @@ class DocumentRepository:
             LIMIT :limit
             """
         )
-        params: dict[str, object] = {"query": fts_query, "limit": limit}
-        if source_id:
-            params["source_id"] = source_id
 
+        rows = []
         with self.database.session() as session:
-            rows = session.execute(statement, params).mappings().all()
+            for fts_query in fts_queries:
+                params: dict[str, object] = {"query": fts_query, "limit": limit}
+                if source_id:
+                    params["source_id"] = source_id
+                rows = session.execute(statement, params).mappings().all()
+                if rows:
+                    break
 
         hits: list[TextSearchHit] = []
         for row in rows:
@@ -363,7 +368,52 @@ class DocumentRepository:
         return hits
 
 
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "do",
+    "does",
+    "for",
+    "how",
+    "i",
+    "in",
+    "is",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "what",
+    "when",
+    "where",
+    "with",
+}
+
+
+def fts_query_candidates(query: str) -> list[str]:
+    tokens = query_tokens(query)
+    if not tokens:
+        return []
+
+    escaped_tokens = [_quoted_fts_token(token) for token in tokens]
+    queries: list[str] = []
+    if len(tokens) > 1:
+        phrase = _quoted_fts_token(" ".join(tokens))
+        queries.append(f"{phrase} OR {' AND '.join(escaped_tokens)}")
+        queries.append(" AND ".join(escaped_tokens))
+    queries.append(" OR ".join(escaped_tokens))
+    return list(dict.fromkeys(queries))
+
+
 def escape_fts_query(query: str) -> str:
+    candidates = fts_query_candidates(query)
+    return candidates[0] if candidates else '""'
+
+
+def query_tokens(query: str) -> list[str]:
     tokens: list[str] = []
     current: list[str] = []
     in_quote = False
@@ -385,12 +435,13 @@ def escape_fts_query(query: str) -> str:
         tokens.append("".join(current))
 
     tokens = [token.strip() for token in tokens if token.strip()]
-    if not tokens:
-        return '""'
+    meaningful = [
+        token
+        for token in tokens
+        if len(token) > 1 and token.lower() not in STOPWORDS
+    ]
+    return meaningful or tokens
 
-    escaped_tokens = [f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens]
-    if len(escaped_tokens) == 1:
-        return escaped_tokens[0]
 
-    exact_match = f'"{" ".join(tokens).replace(chr(34), chr(34) * 2)}"'
-    return f"{exact_match} OR {' OR '.join(escaped_tokens)}"
+def _quoted_fts_token(token: str) -> str:
+    return f'"{token.replace(chr(34), chr(34) * 2)}"'
