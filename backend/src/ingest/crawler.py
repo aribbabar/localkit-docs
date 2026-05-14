@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import fnmatch
 import json
 import re
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,13 +15,46 @@ from urllib.parse import parse_qsl, urljoin, urlparse, urlunparse
 from core.ids import slugify
 from core.progress import ProgressCallback
 
+DEFAULT_INCLUDE_PATTERNS: tuple[str, ...] = ("/docs/",)
+DEFAULT_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    "*changelog*",
+    "*change-log*",
+    "*release-notes*",
+    "*license*",
+    "*code-of-conduct*",
+    "*code_conduct*",
+    "*package-lock*",
+    "*pnpm-lock*",
+    "*yarn.lock*",
+    "*/test/*",
+    "*/tests/*",
+    "*/archive/*",
+    "*/archived/*",
+    "*/deprecated/*",
+    "*/build/*",
+    "*/target/*",
+    "*/old/*",
+    "*/old-docs/*",
+    "*/docs-old/*",
+    "*/dist/*",
+    "*/coverage/*",
+    "*/node_modules/*",
+    "*/.git/*",
+    "*.zip",
+    "*.tar",
+    "*.tar.gz",
+    "*.tgz",
+)
+
+PatternInput = str | Sequence[str] | None
+
 
 @dataclass(frozen=True)
 class CrawlOptions:
-    include: str | None = None
-    exclude: str | None = None
+    include: PatternInput = None
+    exclude: PatternInput = None
     max_depth: int = 3
-    max_pages: int = 100
+    max_pages: int = 1000
     delay_seconds: float = 0.15
     timeout_seconds: float = 20.0
     fresh: bool = False
@@ -72,7 +107,10 @@ async def crawl_remote(
         ) from exc
 
     normalized_start = normalize_url(start_url)
-    scope_prefix = resolve_scope_prefix(normalized_start, options.include)
+    include_patterns = normalize_patterns(options.include, DEFAULT_INCLUDE_PATTERNS)
+    exclude_patterns = normalize_patterns(options.exclude, DEFAULT_EXCLUDE_PATTERNS)
+    include_url_patterns = resolve_include_url_patterns(normalized_start, include_patterns)
+    scope_prefix = resolve_scope_prefix(normalized_start, include_patterns)
     output_dir = output_dir.resolve()
     pages_dir = output_dir / "pages"
     manifest_path = output_dir / "manifest.json"
@@ -115,18 +153,18 @@ async def crawl_remote(
         atomic_write_text(checkpoint_path, json.dumps(state, indent=2, ensure_ascii=False))
         save_manifest(status="running", pages_crawled=state.get("pages_crawled"))
 
-    parsed_scope = urlparse(scope_prefix)
-    allowed_host = parsed_scope.hostname
+    parsed_start = urlparse(normalized_start)
+    allowed_host = parsed_start.hostname
     if not allowed_host:
-        raise ValueError(f"Unable to determine allowed host from scope prefix: {scope_prefix}")
+        raise ValueError(f"Unable to determine allowed host from start URL: {normalized_start}")
 
-    filter_chain = FilterChain(
-        [
-            DomainFilter(allowed_domains=[allowed_host]),
-            URLPatternFilter(patterns=scope_patterns(scope_prefix)),
-            ContentTypeFilter(allowed_types=["text/html"]),
-        ]
-    )
+    filters = [DomainFilter(allowed_domains=[allowed_host])]
+    if include_url_patterns:
+        filters.append(URLPatternFilter(patterns=include_url_patterns))
+    if exclude_patterns:
+        filters.append(URLPatternFilter(patterns=list(exclude_patterns), reverse=True))
+    filters.append(ContentTypeFilter(allowed_types=["text/html"]))
+    filter_chain = FilterChain(filters)
     deep_crawl_strategy = BFSDeepCrawlStrategy(
         max_depth=options.max_depth,
         max_pages=options.max_pages,
@@ -167,7 +205,7 @@ async def crawl_remote(
     async with AsyncWebCrawler(config=browser_config) as crawler:
         stream = await crawler.arun(url=normalized_start, config=run_config)
         async for result in stream:
-            if options.exclude and options.exclude in str(getattr(result, "url", "")):
+            if matches_any_pattern(str(getattr(result, "url", "")), exclude_patterns):
                 continue
             page_output = extract_page_output(result)
             relative_path = page_path_for_url(result.url, page_output.extension)
@@ -258,15 +296,61 @@ def normalize_url(raw_url: str) -> str:
     )
 
 
-def resolve_scope_prefix(start_url: str, include: str | None) -> str:
-    if not include:
+def normalize_patterns(value: PatternInput, defaults: Sequence[str] = ()) -> tuple[str, ...]:
+    if value is None:
+        return tuple(defaults)
+
+    if isinstance(value, str):
+        raw_patterns = re.split(r"[\n,]+", value)
+    else:
+        raw_patterns = []
+        for item in value:
+            raw_patterns.extend(re.split(r"[\n,]+", item))
+
+    return tuple(pattern.strip() for pattern in raw_patterns if pattern.strip())
+
+
+def resolve_scope_prefix(start_url: str, include: PatternInput) -> str:
+    include_patterns = normalize_patterns(include)
+    if not include_patterns:
         return infer_scope_prefix(start_url)
-    include = include.strip()
-    if not include:
-        return infer_scope_prefix(start_url)
-    if "://" in include:
-        return normalize_url(include)
-    return normalize_url(urljoin(start_url, include))
+
+    first_include = include_patterns[0]
+    if "://" in first_include:
+        return normalize_url(first_include.replace("*", "").rstrip("/") or first_include)
+    if first_include.startswith("/"):
+        return normalize_url(urljoin(start_url, first_include.replace("*", "").rstrip("/") or "/"))
+    return normalize_url(urljoin(start_url, first_include))
+
+
+def resolve_include_url_patterns(start_url: str, include_patterns: Sequence[str]) -> list[str]:
+    patterns: list[str] = []
+    for include in include_patterns:
+        if looks_like_pattern(include):
+            patterns.append(include)
+            continue
+
+        if "://" in include:
+            prefix = normalize_url(include).rstrip("/")
+            patterns.append(f"{prefix}/*")
+            continue
+
+        if include.startswith("/"):
+            prefix = "/" + include.strip("/")
+            patterns.append("/*" if prefix == "/" else f"{prefix}/*")
+            continue
+
+        patterns.append(f"*{include}*")
+    return patterns
+
+
+def looks_like_pattern(value: str) -> bool:
+    return "*" in value or value.startswith("^") or value.endswith("$") or "\\d" in value
+
+
+def matches_any_pattern(url: str, patterns: Sequence[str]) -> bool:
+    normalized_url = url.lower()
+    return any(fnmatch.fnmatch(normalized_url, pattern.lower()) for pattern in patterns)
 
 
 def infer_project_name(start_url: str) -> str:

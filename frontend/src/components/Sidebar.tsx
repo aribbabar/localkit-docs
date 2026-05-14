@@ -11,6 +11,7 @@ import styles from './Sidebar.module.css'
 type SidebarProps = {
   activeProgress: OperationProgress | null
   busy: BusyTask
+  exclude: string
   folderFiles: FolderFile[]
   include: string
   indexedSources: number
@@ -21,9 +22,11 @@ type SidebarProps = {
   onAddUploadedFolder: (event?: FormEvent) => void
   onFolderDrop: (event: DragEvent<HTMLDivElement>) => Promise<void>
   onOpenSettings: () => void
+  onResetRemoteCrawlSettings: () => void
   onSelectFolderFiles: (files: FileList | File[]) => void
   remoteName: string
   remoteUrl: string
+  setExclude: (value: string) => void
   setInclude: (value: string) => void
   setMaxDepth: (value: number) => void
   setMaxPages: (value: number) => void
@@ -51,12 +54,15 @@ export function Sidebar(props: SidebarProps) {
       />
       <RemoteDocsForm
         busy={props.busy}
+        exclude={props.exclude}
         include={props.include}
         maxDepth={props.maxDepth}
         maxPages={props.maxPages}
         onAddRemote={props.onAddRemote}
+        onResetRemoteCrawlSettings={props.onResetRemoteCrawlSettings}
         remoteName={props.remoteName}
         remoteUrl={props.remoteUrl}
+        setExclude={props.setExclude}
         setInclude={props.setInclude}
         setMaxDepth={props.setMaxDepth}
         setMaxPages={props.setMaxPages}

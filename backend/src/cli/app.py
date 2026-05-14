@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import typer
 
@@ -46,10 +46,16 @@ def add_local(
 def add_remote(
     url: Annotated[str, typer.Argument(help="Remote docs URL to crawl.")],
     name: Annotated[str | None, typer.Option("--name", "-n")] = None,
-    include: Annotated[str | None, typer.Option("--include", help="Only crawl URLs containing this value.")] = None,
-    exclude: Annotated[str | None, typer.Option("--exclude", help="Skip URLs containing this value.")] = None,
+    include: Annotated[
+        Optional[list[str]],
+        typer.Option("--include", help="Only crawl URLs matching this pattern. Can be passed multiple times."),
+    ] = None,
+    exclude: Annotated[
+        Optional[list[str]],
+        typer.Option("--exclude", help="Skip URLs matching this pattern. Can be passed multiple times."),
+    ] = None,
     max_depth: Annotated[int, typer.Option("--max-depth")] = 3,
-    max_pages: Annotated[int, typer.Option("--max-pages")] = 100,
+    max_pages: Annotated[int, typer.Option("--max-pages")] = 1000,
     delay: Annotated[float, typer.Option("--delay", help="Delay between page requests in seconds.")] = 0.15,
     index: Annotated[bool, typer.Option(help="Index immediately after crawling.")] = True,
 ) -> None:

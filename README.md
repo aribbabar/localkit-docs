@@ -49,7 +49,7 @@ localkit add-local ./docs --name my-docs
 or:
 
 ```bash
-localkit add-remote https://example.com/docs --include /docs/ --max-depth 3 --max-pages 100
+localkit add-remote https://example.com/docs --include /docs/ --max-depth 3 --max-pages 1000
 ```
 
 Search:
@@ -99,7 +99,7 @@ localkit add-local PATH --name NAME
 Add remote documentation:
 
 ```bash
-localkit add-remote URL --include /docs/ --max-depth 3 --max-pages 100
+localkit add-remote URL --include /docs/ --include /guide/ --exclude "*changelog*" --max-depth 3 --max-pages 1000
 ```
 
 Search docs:

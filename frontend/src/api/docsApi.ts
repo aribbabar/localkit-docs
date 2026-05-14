@@ -13,7 +13,8 @@ type SearchResponse = {
 }
 
 type RemoteSourceInput = {
-  include: string | null
+  exclude: string[]
+  include: string[]
   maxDepth: number
   maxPages: number
   name: string | null
@@ -60,6 +61,7 @@ export async function uploadLocalSource({
 }
 
 export async function createRemoteSource({
+  exclude,
   include,
   maxDepth,
   maxPages,
@@ -74,6 +76,7 @@ export async function createRemoteSource({
       url,
       name,
       include,
+      exclude,
       max_pages: maxPages,
       max_depth: maxDepth,
       delay_seconds: 0.15,

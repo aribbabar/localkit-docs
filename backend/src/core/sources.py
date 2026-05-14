@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 from core.ids import slugify, stable_id
 from core.progress import ProgressCallback
-from ingest.crawler import CrawlOptions, crawl_remote, infer_remote_name
+from ingest.crawler import (
+    DEFAULT_EXCLUDE_PATTERNS,
+    DEFAULT_INCLUDE_PATTERNS,
+    CrawlOptions,
+    crawl_remote,
+    infer_remote_name,
+    normalize_patterns,
+)
 from ingest.files import copy_local_source
 from storage.repositories import SourceRecord, SourceRepository
 
@@ -42,10 +50,10 @@ class SourceService:
         self,
         url: str,
         name: str | None = None,
-        include: str | None = None,
-        exclude: str | None = None,
+        include: str | Sequence[str] | None = None,
+        exclude: str | Sequence[str] | None = None,
         max_depth: int = 3,
-        max_pages: int = 100,
+        max_pages: int = 1000,
         delay_seconds: float = 0.15,
         overwrite: bool = True,
         progress: ProgressCallback | None = None,
@@ -55,9 +63,11 @@ class SourceService:
         project_dir = self.sources_dir / "remote" / slugify(source_name, source_id)
         if project_dir.exists() and overwrite:
             shutil.rmtree(project_dir)
+        include_patterns = normalize_patterns(include, DEFAULT_INCLUDE_PATTERNS)
+        exclude_patterns = normalize_patterns(exclude, DEFAULT_EXCLUDE_PATTERNS)
         options = CrawlOptions(
-            include=include,
-            exclude=exclude,
+            include=include_patterns,
+            exclude=exclude_patterns,
             max_depth=max_depth,
             max_pages=max_pages,
             delay_seconds=delay_seconds,
@@ -71,8 +81,8 @@ class SourceService:
             stored_path=str(crawl.pages_dir),
             status="pending",
             options={
-                "include": include,
-                "exclude": exclude,
+                "include": list(include_patterns),
+                "exclude": list(exclude_patterns),
                 "max_depth": max_depth,
                 "max_pages": max_pages,
                 "delay_seconds": delay_seconds,

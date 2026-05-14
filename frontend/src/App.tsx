@@ -32,6 +32,49 @@ import styles from './App.module.css'
 
 const DEFAULT_LOCAL_DOCS_MAX_FILES = 10000
 const LOCAL_DOCS_MAX_FILES_KEY = 'localkit.localDocsMaxFiles'
+const REMOTE_CRAWL_SETTINGS_KEY = 'localkit.remoteCrawlSettings'
+const DEFAULT_REMOTE_CRAWL_SETTINGS = {
+  excludePatterns: [
+    '*changelog*',
+    '*change-log*',
+    '*release-notes*',
+    '*license*',
+    '*code-of-conduct*',
+    '*code_conduct*',
+    '*package-lock*',
+    '*pnpm-lock*',
+    '*yarn.lock*',
+    '*/test/*',
+    '*/tests/*',
+    '*/archive/*',
+    '*/archived/*',
+    '*/deprecated/*',
+    '*/build/*',
+    '*/target/*',
+    '*/old/*',
+    '*/old-docs/*',
+    '*/docs-old/*',
+    '*/dist/*',
+    '*/coverage/*',
+    '*/node_modules/*',
+    '*/.git/*',
+    '*.zip',
+    '*.tar',
+    '*.tar.gz',
+    '*.tgz',
+  ],
+  includePatterns: ['/docs/'],
+  maxDepth: 3,
+  maxPages: 1000,
+}
+
+type RemoteCrawlSettings = typeof DEFAULT_REMOTE_CRAWL_SETTINGS
+type RemoteCrawlForm = {
+  exclude: string
+  include: string
+  maxDepth: number
+  maxPages: number
+}
 
 type Route = { page: 'home' } | { page: 'settings' } | { page: 'source'; sourceId: string }
 
@@ -54,6 +97,72 @@ function readLocalDocsMaxFiles(): number {
   return DEFAULT_LOCAL_DOCS_MAX_FILES
 }
 
+function parsePatternInput(value: string): string[] {
+  return value
+    .split(/[\n,]+/)
+    .map((pattern) => pattern.trim())
+    .filter(Boolean)
+}
+
+function formatPatterns(patterns: string[]): string {
+  return patterns.join('\n')
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
+  return Math.max(min, Math.min(max, Math.floor(value)))
+}
+
+function readSavedInteger(value: unknown, fallback: number, min: number, max: number): number {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return fallback
+  return clampInteger(numericValue, min, max)
+}
+
+function readRemoteCrawlSettings(): RemoteCrawlSettings {
+  const fallback = DEFAULT_REMOTE_CRAWL_SETTINGS
+  try {
+    const savedSettings = JSON.parse(window.localStorage.getItem(REMOTE_CRAWL_SETTINGS_KEY) || 'null') as Partial<
+      RemoteCrawlSettings
+    > | null
+    if (!savedSettings || typeof savedSettings !== 'object') return fallback
+
+    return {
+      excludePatterns: Array.isArray(savedSettings.excludePatterns)
+        ? savedSettings.excludePatterns.filter((pattern): pattern is string => typeof pattern === 'string')
+        : fallback.excludePatterns,
+      includePatterns: Array.isArray(savedSettings.includePatterns)
+        ? savedSettings.includePatterns.filter((pattern): pattern is string => typeof pattern === 'string')
+        : fallback.includePatterns,
+      maxDepth: readSavedInteger(savedSettings.maxDepth, fallback.maxDepth, 1, 20),
+      maxPages: readSavedInteger(savedSettings.maxPages, fallback.maxPages, 1, 5000),
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function createRemoteCrawlForm(settings: RemoteCrawlSettings = readRemoteCrawlSettings()): RemoteCrawlForm {
+  return {
+    exclude: formatPatterns(settings.excludePatterns),
+    include: formatPatterns(settings.includePatterns),
+    maxDepth: settings.maxDepth,
+    maxPages: settings.maxPages,
+  }
+}
+
+function persistRemoteCrawlForm(settings: RemoteCrawlForm) {
+  window.localStorage.setItem(
+    REMOTE_CRAWL_SETTINGS_KEY,
+    JSON.stringify({
+      excludePatterns: parsePatternInput(settings.exclude),
+      includePatterns: parsePatternInput(settings.include),
+      maxDepth: settings.maxDepth,
+      maxPages: settings.maxPages,
+    }),
+  )
+}
+
 function App() {
   const [sources, setSources] = useState<Source[]>([])
   const [documents, setDocuments] = useState<IndexedDocument[]>([])
@@ -65,9 +174,7 @@ function App() {
   const [folderFiles, setFolderFiles] = useState<FolderFile[]>([])
   const [remoteUrl, setRemoteUrl] = useState('')
   const [remoteName, setRemoteName] = useState('')
-  const [include, setInclude] = useState('/docs/')
-  const [maxPages, setMaxPages] = useState(100)
-  const [maxDepth, setMaxDepth] = useState(3)
+  const [remoteCrawlForm, setRemoteCrawlForm] = useState(createRemoteCrawlForm)
   const [localDocsMaxFiles, setLocalDocsMaxFilesState] = useState(readLocalDocsMaxFiles)
   const [busy, setBusy] = useState<BusyTask>(null)
   const [message, setMessage] = useState('Backend not checked')
@@ -94,10 +201,10 @@ function App() {
     if (settledOperationRef.current === activeProgress.operation_id) return
     settledOperationRef.current = activeProgress.operation_id
     void refreshSources()
-    if (route.page === 'source') {
-      void fetchSourceDocuments(route.sourceId).then(setDocuments).catch(() => undefined)
+    if (selectedSourceId) {
+      void fetchSourceDocuments(selectedSourceId).then(setDocuments).catch(() => undefined)
     }
-  }, [activeProgress?.operation_id, activeProgress?.status])
+  }, [activeProgress, selectedSourceId])
 
   useEffect(() => {
     function handlePopState() {
@@ -216,6 +323,21 @@ function App() {
     setMessage('Settings saved')
   }
 
+  function updateRemoteCrawlForm(update: Partial<RemoteCrawlForm>) {
+    setRemoteCrawlForm((currentSettings) => {
+      const nextSettings = { ...currentSettings, ...update }
+      persistRemoteCrawlForm(nextSettings)
+      return nextSettings
+    })
+  }
+
+  function resetRemoteCrawlSettings() {
+    const defaultSettings = createRemoteCrawlForm(DEFAULT_REMOTE_CRAWL_SETTINGS)
+    setRemoteCrawlForm(defaultSettings)
+    persistRemoteCrawlForm(defaultSettings)
+    setMessage('Remote crawl defaults restored')
+  }
+
   async function handleFolderDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault()
 
@@ -237,9 +359,10 @@ function App() {
         await createRemoteSource({
           url: remoteUrl,
           name: remoteName || null,
-          include: include || null,
-          maxPages,
-          maxDepth,
+          exclude: parsePatternInput(remoteCrawlForm.exclude),
+          include: parsePatternInput(remoteCrawlForm.include),
+          maxPages: remoteCrawlForm.maxPages,
+          maxDepth: remoteCrawlForm.maxDepth,
           operationId,
         })
         await waitForOperation(operationId)
@@ -303,21 +426,24 @@ function App() {
         activeProgress={activeProgress}
         busy={busy}
         folderFiles={folderFiles}
-        include={include}
+        exclude={remoteCrawlForm.exclude}
+        include={remoteCrawlForm.include}
         indexedSources={indexedSources}
-        maxDepth={maxDepth}
-        maxPages={maxPages}
+        maxDepth={remoteCrawlForm.maxDepth}
+        maxPages={remoteCrawlForm.maxPages}
         message={message}
         onAddRemote={addRemote}
         onAddUploadedFolder={addUploadedFolder}
         onFolderDrop={handleFolderDrop}
         onOpenSettings={navigateSettings}
+        onResetRemoteCrawlSettings={resetRemoteCrawlSettings}
         onSelectFolderFiles={selectFolderFiles}
         remoteName={remoteName}
         remoteUrl={remoteUrl}
-        setInclude={setInclude}
-        setMaxDepth={setMaxDepth}
-        setMaxPages={setMaxPages}
+        setExclude={(exclude) => updateRemoteCrawlForm({ exclude })}
+        setInclude={(include) => updateRemoteCrawlForm({ include })}
+        setMaxDepth={(maxDepth) => updateRemoteCrawlForm({ maxDepth: clampInteger(maxDepth, 1, 20) })}
+        setMaxPages={(maxPages) => updateRemoteCrawlForm({ maxPages: clampInteger(maxPages, 1, 5000) })}
         setRemoteName={setRemoteName}
         setRemoteUrl={setRemoteUrl}
         setUploadedFolderName={setUploadedFolderName}

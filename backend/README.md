@@ -6,7 +6,7 @@ Python backend and CLI for LocalKit Docs.
 
 ```powershell
 localkit add-local PATH --name NAME
-localkit add-remote URL --include /docs/ --max-depth 3 --max-pages 100
+localkit add-remote URL --include /docs/ --include /guide/ --max-depth 3 --max-pages 1000
 localkit list
 localkit index SOURCE_ID
 localkit search "query"

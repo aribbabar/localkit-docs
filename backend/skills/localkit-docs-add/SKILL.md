@@ -12,7 +12,7 @@ Run from `backend/`.
 ```powershell
 localkit list
 localkit add-local PATH --name DOCS_NAME
-localkit add-remote URL --name DOCS_NAME --include /docs/ --max-depth 3 --max-pages 100
+localkit add-remote URL --name DOCS_NAME --include /docs/ --max-depth 3 --max-pages 1000
 localkit index SOURCE_ID
 localkit remove SOURCE_ID
 ```
