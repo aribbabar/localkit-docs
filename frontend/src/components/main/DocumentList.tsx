@@ -1,5 +1,6 @@
 import { FiFileText } from 'react-icons/fi'
 import { classNames } from '../../utils/classNames'
+import { getDocumentMeta, getDocumentTitle } from '../../utils/documentDisplay'
 import type { BusyTask, DocumentDetail, IndexedDocument, Source } from '../../types'
 import styles from '../MainPanel.module.css'
 
@@ -19,10 +20,14 @@ export function DocumentList({
   selectedSource,
 }: DocumentListProps) {
   return (
-    <section className={styles.section}>
+    <section className={classNames(styles.section, styles.documentsSection)}>
       <header>
-        <h2>{selectedSource ? `${selectedSource.name} Docs` : 'Documents'}</h2>
-        <span>{documents.length} indexed</span>
+        <div>
+          <h2>Indexed pages</h2>
+          <span>
+            {selectedSource ? `${selectedSource.name} · ${documents.length} pages` : `${documents.length} pages`}
+          </span>
+        </div>
       </header>
       <div className={styles.list}>
         {documents.map((document) => (
@@ -38,10 +43,8 @@ export function DocumentList({
           >
             <FiFileText size={16} />
             <span>
-              <strong>{document.title || document.path}</strong>
-              <small>
-                {document.path} - {document.chunk_count} chunks
-              </small>
+              <strong>{getDocumentTitle(document)}</strong>
+              <small>{getDocumentMeta(document)}</small>
             </span>
           </button>
         ))}

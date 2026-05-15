@@ -1,10 +1,27 @@
 .sidebar {
-  border-right: 1px solid var(--border);
-  background: var(--panel);
-  padding: 24px;
+  width: min(100%, 1040px);
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  padding: 32px 24px 30px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 26px;
+}
+
+.consoleIntro {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 18px;
+  align-content: start;
+  align-items: center;
+}
+
+.ingestGrid {
+  min-width: 0;
+  display: grid;
+  gap: 22px;
+  align-items: start;
 }
 
 .brand {
@@ -16,7 +33,7 @@
 
 .brand h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 28px;
   line-height: 1.1;
 }
 
@@ -51,7 +68,6 @@
 }
 
 .settingsButton {
-  margin-top: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--input);
@@ -74,6 +90,11 @@
 }
 
 .sourceForm {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -124,7 +145,7 @@
 }
 
 .dropzone {
-  min-height: 118px;
+  min-height: 126px;
   border: 1px dashed var(--border);
   border-radius: 8px;
   background: var(--input);
@@ -171,7 +192,10 @@
 
 @media (max-width: 860px) {
   .sidebar {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
+    padding: 20px;
+  }
+
+  .consoleIntro {
+    grid-template-columns: 1fr;
   }
 }

@@ -40,39 +40,43 @@ type SidebarProps = {
 export function Sidebar(props: SidebarProps) {
   return (
     <aside className={styles.sidebar}>
-      <Brand message={props.message} />
-      <MetricGrid sourcesCount={props.sourcesCount} indexedSources={props.indexedSources} />
-      {props.activeProgress ? <ProgressPanel progress={props.activeProgress} /> : null}
-      <LocalDocsForm
-        busy={props.busy}
-        folderFiles={props.folderFiles}
-        onAddUploadedFolder={props.onAddUploadedFolder}
-        onFolderDrop={props.onFolderDrop}
-        onSelectFolderFiles={props.onSelectFolderFiles}
-        setUploadedFolderName={props.setUploadedFolderName}
-        uploadedFolderName={props.uploadedFolderName}
-      />
-      <RemoteDocsForm
-        busy={props.busy}
-        exclude={props.exclude}
-        include={props.include}
-        maxDepth={props.maxDepth}
-        maxPages={props.maxPages}
-        onAddRemote={props.onAddRemote}
-        onResetRemoteCrawlSettings={props.onResetRemoteCrawlSettings}
-        remoteName={props.remoteName}
-        remoteUrl={props.remoteUrl}
-        setExclude={props.setExclude}
-        setInclude={props.setInclude}
-        setMaxDepth={props.setMaxDepth}
-        setMaxPages={props.setMaxPages}
-        setRemoteName={props.setRemoteName}
-        setRemoteUrl={props.setRemoteUrl}
-      />
-      <button className={styles.settingsButton} type="button" onClick={props.onOpenSettings}>
-        <FiSettings size={16} />
-        Settings
-      </button>
+      <div className={styles.consoleIntro}>
+        <Brand message={props.message} />
+        <MetricGrid sourcesCount={props.sourcesCount} indexedSources={props.indexedSources} />
+        {props.activeProgress ? <ProgressPanel progress={props.activeProgress} /> : null}
+        <button className={styles.settingsButton} type="button" onClick={props.onOpenSettings}>
+          <FiSettings size={16} />
+          Settings
+        </button>
+      </div>
+      <div className={styles.ingestGrid}>
+        <LocalDocsForm
+          busy={props.busy}
+          folderFiles={props.folderFiles}
+          onAddUploadedFolder={props.onAddUploadedFolder}
+          onFolderDrop={props.onFolderDrop}
+          onSelectFolderFiles={props.onSelectFolderFiles}
+          setUploadedFolderName={props.setUploadedFolderName}
+          uploadedFolderName={props.uploadedFolderName}
+        />
+        <RemoteDocsForm
+          busy={props.busy}
+          exclude={props.exclude}
+          include={props.include}
+          maxDepth={props.maxDepth}
+          maxPages={props.maxPages}
+          onAddRemote={props.onAddRemote}
+          onResetRemoteCrawlSettings={props.onResetRemoteCrawlSettings}
+          remoteName={props.remoteName}
+          remoteUrl={props.remoteUrl}
+          setExclude={props.setExclude}
+          setInclude={props.setInclude}
+          setMaxDepth={props.setMaxDepth}
+          setMaxPages={props.setMaxPages}
+          setRemoteName={props.setRemoteName}
+          setRemoteUrl={props.setRemoteUrl}
+        />
+      </div>
     </aside>
   )
 }

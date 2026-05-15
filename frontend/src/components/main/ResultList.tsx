@@ -1,5 +1,6 @@
 import { FiFileText, FiSearch } from 'react-icons/fi'
 import { classNames } from '../../utils/classNames'
+import { getDocumentTitle } from '../../utils/documentDisplay'
 import type { BusyTask, SearchResult, Source } from '../../types'
 import styles from '../MainPanel.module.css'
 
@@ -45,7 +46,7 @@ export function ResultList({ busy, onOpenDocument, query, results, selectedSourc
                 <FiFileText />
               </span>
               <span>
-                <strong>{result.title || result.path}</strong>
+                <strong>{getDocumentTitle(result)}</strong>
                 <small>{result.path}</small>
               </span>
               <b title={`Score ${result.score.toFixed(3)}`}>

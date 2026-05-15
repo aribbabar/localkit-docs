@@ -12,6 +12,7 @@ import {
 } from './api/docsApi'
 import { MainPanel } from './components/MainPanel'
 import { Sidebar } from './components/Sidebar'
+import { classNames } from './utils/classNames'
 import { useOperationProgress } from './hooks/useOperationProgress'
 import {
   getDroppedFolderFiles,
@@ -421,35 +422,37 @@ function App() {
   }
 
   return (
-    <main className={styles.workspace}>
-      <Sidebar
-        activeProgress={activeProgress}
-        busy={busy}
-        folderFiles={folderFiles}
-        exclude={remoteCrawlForm.exclude}
-        include={remoteCrawlForm.include}
-        indexedSources={indexedSources}
-        maxDepth={remoteCrawlForm.maxDepth}
-        maxPages={remoteCrawlForm.maxPages}
-        message={message}
-        onAddRemote={addRemote}
-        onAddUploadedFolder={addUploadedFolder}
-        onFolderDrop={handleFolderDrop}
-        onOpenSettings={navigateSettings}
-        onResetRemoteCrawlSettings={resetRemoteCrawlSettings}
-        onSelectFolderFiles={selectFolderFiles}
-        remoteName={remoteName}
-        remoteUrl={remoteUrl}
-        setExclude={(exclude) => updateRemoteCrawlForm({ exclude })}
-        setInclude={(include) => updateRemoteCrawlForm({ include })}
-        setMaxDepth={(maxDepth) => updateRemoteCrawlForm({ maxDepth: clampInteger(maxDepth, 1, 20) })}
-        setMaxPages={(maxPages) => updateRemoteCrawlForm({ maxPages: clampInteger(maxPages, 1, 5000) })}
-        setRemoteName={setRemoteName}
-        setRemoteUrl={setRemoteUrl}
-        setUploadedFolderName={setUploadedFolderName}
-        sourcesCount={sources.length}
-        uploadedFolderName={uploadedFolderName}
-      />
+    <main className={classNames(styles.workspace, route.page === 'source' && styles.focusWorkspace)}>
+      {route.page === 'home' ? (
+        <Sidebar
+          activeProgress={activeProgress}
+          busy={busy}
+          folderFiles={folderFiles}
+          exclude={remoteCrawlForm.exclude}
+          include={remoteCrawlForm.include}
+          indexedSources={indexedSources}
+          maxDepth={remoteCrawlForm.maxDepth}
+          maxPages={remoteCrawlForm.maxPages}
+          message={message}
+          onAddRemote={addRemote}
+          onAddUploadedFolder={addUploadedFolder}
+          onFolderDrop={handleFolderDrop}
+          onOpenSettings={navigateSettings}
+          onResetRemoteCrawlSettings={resetRemoteCrawlSettings}
+          onSelectFolderFiles={selectFolderFiles}
+          remoteName={remoteName}
+          remoteUrl={remoteUrl}
+          setExclude={(exclude) => updateRemoteCrawlForm({ exclude })}
+          setInclude={(include) => updateRemoteCrawlForm({ include })}
+          setMaxDepth={(maxDepth) => updateRemoteCrawlForm({ maxDepth: clampInteger(maxDepth, 1, 20) })}
+          setMaxPages={(maxPages) => updateRemoteCrawlForm({ maxPages: clampInteger(maxPages, 1, 5000) })}
+          setRemoteName={setRemoteName}
+          setRemoteUrl={setRemoteUrl}
+          setUploadedFolderName={setUploadedFolderName}
+          sourcesCount={sources.length}
+          uploadedFolderName={uploadedFolderName}
+        />
+      ) : null}
       <MainPanel
         busy={busy}
         documents={documents}

@@ -1,4 +1,5 @@
 import { classNames } from '../../utils/classNames'
+import { getDocumentTitle } from '../../utils/documentDisplay'
 import type { DocumentDetail } from '../../types'
 import styles from '../MainPanel.module.css'
 
@@ -10,7 +11,7 @@ export function Preview({ selectedDocument }: PreviewProps) {
   return (
     <section className={classNames(styles.section, styles.preview)}>
       <header>
-        <h2>{selectedDocument?.document.title || 'Preview'}</h2>
+        <h2>{selectedDocument ? getDocumentTitle(selectedDocument.document) : 'Preview'}</h2>
         <span>{selectedDocument?.document.path || 'No document selected'}</span>
       </header>
       {selectedDocument ? (
