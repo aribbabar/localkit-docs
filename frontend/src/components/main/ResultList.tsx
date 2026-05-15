@@ -30,9 +30,8 @@ export function ResultList({ busy, onOpenDocument, query, results, selectedSourc
             {selectedSource ? `${results.length} matches in selected source` : `${results.length} matches`}
           </span>
         </div>
-        {hasQuery ? <span className={styles.queryPill}>{query}</span> : null}
       </header>
-      <div className={styles.list}>
+      <div className={classNames(styles.list, styles.resultsList)}>
         {results.map((result) => (
           <button
             className={styles.resultRow}
