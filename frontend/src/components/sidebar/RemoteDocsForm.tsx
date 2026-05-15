@@ -2,7 +2,6 @@ import type { FormEvent } from 'react'
 import { FiGlobe, FiRotateCcw } from 'react-icons/fi'
 import { ImSpinner2 } from 'react-icons/im'
 import type { BusyTask } from '../../types'
-import { classNames } from '../../utils/classNames'
 import controls from '../controls.module.css'
 import styles from '../Sidebar.module.css'
 
@@ -43,7 +42,18 @@ export function RemoteDocsForm({
 }: RemoteDocsFormProps) {
   return (
     <form className={styles.sourceForm} onSubmit={onAddRemote}>
-      <h2>Remote Docs</h2>
+      <div className={styles.sourceFormHeader}>
+        <h2>Remote Docs</h2>
+        <button
+          className={styles.resetButton}
+          type="button"
+          onClick={onResetRemoteCrawlSettings}
+          title="Reset remote crawl settings"
+        >
+          <FiRotateCcw size={14} />
+          Reset
+        </button>
+      </div>
       <label>
         URL
         <input
@@ -104,10 +114,6 @@ export function RemoteDocsForm({
         </label>
       </div>
       <div className={styles.formActions}>
-        <button className={classNames(controls.button, controls.ghost)} type="button" onClick={onResetRemoteCrawlSettings}>
-          <FiRotateCcw size={16} />
-          Reset
-        </button>
         <button className={controls.button} type="submit" disabled={busy !== null}>
           {busy === 'remote' ? <ImSpinner2 className={controls.spin} size={16} /> : <FiGlobe size={16} />}
           Crawl remote
