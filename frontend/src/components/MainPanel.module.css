@@ -162,7 +162,7 @@
 
 .topbar {
   display: grid;
-  grid-template-columns: minmax(260px, 0.48fr) minmax(360px, 1fr) auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(280px, 760px) minmax(180px, 1fr);
   gap: 22px;
   align-items: center;
   padding: 18px 32px;
@@ -185,9 +185,11 @@
 }
 
 .searchbar {
+  width: 100%;
+  justify-self: center;
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
 }
@@ -674,18 +676,8 @@
     max-height: none;
   }
 
-  .topbar,
-  .searchbar,
-  .sourceSelectButton,
   .resultMeta {
     grid-template-columns: 1fr;
-  }
-
-  .topbar {
-    align-items: stretch;
-    flex-direction: column;
-    display: flex;
-    padding: 16px 20px;
   }
 
   .rowActions {
@@ -715,10 +707,6 @@
     min-height: auto;
   }
 
-  .sourceArrow {
-    display: none;
-  }
-
   .queryPill {
     max-width: 100%;
   }
@@ -731,4 +719,19 @@
     padding-left: 20px;
     padding-right: 20px;
   }
+}
+
+@media (max-width: 760px) {
+  .topbar,
+  .searchbar {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+    display: flex;
+    padding: 16px 20px;
+  }
+
 }

@@ -135,7 +135,6 @@ export function MainPanel({
       <Topbar
         busy={busy}
         onBackToSources={onBackToSources}
-        onRefreshSources={onRefreshSources}
         onSearchDocs={onSearchDocs}
         query={query}
         searchInputRef={searchInputRef}
