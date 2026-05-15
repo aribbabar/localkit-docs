@@ -14,6 +14,7 @@ from core.progress import ProgressCallback, ProgressEvent
 from core.search import SearchService
 from core.services import build_container
 from core.sources import SourceService
+from core.urls import canonical_url_from_origin_path
 
 app = typer.Typer(help="Local-first semantic docs for agents and humans.", no_args_is_help=True)
 
@@ -99,6 +100,10 @@ def search(
     limit: Annotated[int, typer.Option("--limit", "-l")] = 8,
     output: Annotated[str, typer.Option("--output", help="Output format: text or json.")] = "text",
     chars: Annotated[int, typer.Option("--chars", help="Maximum snippet characters per result. Use 0 for full text.")] = 1200,
+    path: Annotated[
+        str | None,
+        typer.Option("--path", help="Restrict results to paths containing this value or matching this glob."),
+    ] = None,
 ) -> None:
     output = _validate_output(output)
     container, _, _, search_service, _ = _services()
@@ -107,13 +112,21 @@ def search(
         raise typer.BadParameter(f"Docs source not found by name or id: {docs}")
     resolved_source_id = source.id
     search_query = query
-    results = asyncio.run(search_service.search(search_query, limit=limit, source_id=resolved_source_id))
+    results = asyncio.run(
+        search_service.search(
+            search_query,
+            limit=limit,
+            source_id=resolved_source_id,
+            path_filter=path,
+        )
+    )
     if output == "json":
         typer.echo(
             json.dumps(
                 {
                     "source": _source_payload(source, container.documents.source_stats(source.id)),
                     "query": search_query,
+                    "path_filter": path,
                     "results": [_search_result_payload(result, chars, query=search_query) for result in results],
                 },
                 indent=2,
@@ -125,6 +138,8 @@ def search(
     for index, result in enumerate(results, start=1):
         typer.echo(f"\n{index}. {result.title or result.path}  score={result.score:.3f}")
         typer.echo(f"   {result.path} ({result.source_id})")
+        if result.source_url:
+            typer.echo(f"   {result.source_url}")
         typer.echo(indent(_clip_text(result.text, chars, query=search_query), "   "))
 
 
@@ -134,6 +149,10 @@ def show(
     document: Annotated[str, typer.Argument(help="Document id, exact path, or unique path suffix.")],
     output: Annotated[str, typer.Option("--output", help="Output format: text or json.")] = "text",
     chars: Annotated[int, typer.Option("--chars", help="Maximum document characters. Use 0 for full text.")] = 0,
+    query: Annotated[
+        str | None,
+        typer.Option("--query", help="Center clipped output around the first matching query term."),
+    ] = None,
 ) -> None:
     output = _validate_output(output)
     container, _, _, _, _ = _services()
@@ -145,13 +164,19 @@ def show(
     if not record:
         raise typer.BadParameter(f"Document not found by id or path in {source.name}: {document}")
 
+    chunks = container.documents.list_chunks_by_document(record.id)
     text = container.documents.get_document_text(record.id)
+    source_url = (
+        _first_chunk_source_url(chunks)
+        or _extract_source_url(text)
+        or canonical_url_from_origin_path(source.origin, record.path)
+    )
     if output == "json":
         typer.echo(
             json.dumps(
                 {
                     "source": _source_payload(source, container.documents.source_stats(source.id)),
-                    "document": _document_payload(record, text, chars),
+                    "document": _document_payload(record, text, chars, query=query, source_url=source_url),
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -161,8 +186,10 @@ def show(
 
     typer.echo(f"{record.title or record.path}")
     typer.echo(f"{record.path} ({record.id})")
+    if source_url:
+        typer.echo(source_url)
     typer.echo("")
-    typer.echo(_clip_text(text, chars))
+    typer.echo(_clip_text(text, chars, query=query))
 
 
 @app.command("list")
@@ -246,18 +273,21 @@ def _clip_text(text: str, chars: int, *, query: str | None = None) -> str:
 def _first_query_match(text: str, query: str) -> int | None:
     lowered = text.lower()
     matches = [
-        lowered.find(term)
+        (len(term), lowered.find(term))
         for term in _query_terms(query)
         if len(term) > 1 and lowered.find(term) >= 0
     ]
-    return min(matches) if matches else None
+    if not matches:
+        return None
+    _, index = max(matches, key=lambda match: (match[0], -match[1]))
+    return index
 
 
 def _query_terms(query: str) -> list[str]:
     return [
-        term.lower()
-        for term in re.findall(r"[a-z0-9_/@{}.-]{2,}", query)
-        if term.lower() not in {"and", "for", "how", "the", "with", "what", "when", "where"}
+        term
+        for term in re.findall(r"[a-z0-9_/@{}.-]{2,}", query.lower())
+        if term not in {"and", "for", "how", "the", "with", "what", "when", "where"}
     ]
 
 
@@ -280,6 +310,8 @@ def _source_payload(source, stats: dict[str, int]) -> dict[str, object]:
         "origin": source.origin,
         "documents": stats["documents"],
         "chunks": stats["chunks"],
+        "created_at": _isoformat(getattr(source, "created_at", None)),
+        "updated_at": _isoformat(getattr(source, "updated_at", None)),
     }
 
 
@@ -290,20 +322,51 @@ def _search_result_payload(result, chars: int, *, query: str | None = None) -> d
         "score": result.score,
         "source_id": result.source_id,
         "path": result.path,
+        "source_url": result.source_url,
         "title": result.title,
         "text": _clip_text(result.text, chars, query=query),
     }
 
 
-def _document_payload(document, text: str, chars: int) -> dict[str, object]:
+def _document_payload(
+    document,
+    text: str,
+    chars: int,
+    *,
+    query: str | None = None,
+    source_url: str | None = None,
+) -> dict[str, object]:
     return {
         "id": document.id,
         "source_id": document.source_id,
         "path": document.path,
+        "source_url": source_url,
         "title": document.title,
         "chunk_count": document.chunk_count,
-        "text": _clip_text(text, chars),
+        "text": _clip_text(text, chars, query=query),
     }
+
+
+def _extract_source_url(text: str) -> str | None:
+    match = re.search(r"(?im)^\s*source_url:\s*(\S+)\s*$", text)
+    return match.group(1).strip() if match else None
+
+
+def _first_chunk_source_url(chunks: list[dict[str, object]]) -> str | None:
+    for chunk in chunks:
+        metadata = chunk.get("metadata", {})
+        if not isinstance(metadata, dict):
+            continue
+        source_url = metadata.get("source_url")
+        if isinstance(source_url, str) and source_url.strip():
+            return source_url.strip()
+    return None
+
+
+def _isoformat(value: object) -> str | None:
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return None
 
 
 def _progress_echo() -> ProgressCallback:

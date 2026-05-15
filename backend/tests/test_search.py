@@ -165,6 +165,118 @@ def test_search_uses_fts_to_find_exact_terms_missed_by_vector_search(repositorie
     assert "retry_budget" in results[0].text
 
 
+def test_search_can_filter_results_by_path(repositories) -> None:
+    sources, documents = repositories
+    documents.add_document("document-1", "source-1", "guides/vercel.md", "Vercel", "hash-1")
+    documents.add_document("document-2", "source-1", "extensions/pgcrypto.md", "pgcrypto", "hash-2")
+    for document_id, path in [
+        ("document-1", "guides/vercel.md"),
+        ("document-2", "extensions/pgcrypto.md"),
+    ]:
+        documents.add_chunk(
+            f"{document_id}-chunk",
+            document_id,
+            "source-1",
+            0,
+            "Use Pool for this integration.",
+            _metadata(document_id, 0, path=path, title=path),
+        )
+
+    vector_store = FakeVectorStore(
+        [
+            _hit(
+                "document-2-chunk",
+                "document-2",
+                0,
+                0.99,
+                path="extensions/pgcrypto.md",
+                title="pgcrypto",
+            ),
+            _hit(
+                "document-1-chunk",
+                "document-1",
+                0,
+                0.80,
+                path="guides/vercel.md",
+                title="Vercel",
+            ),
+        ]
+    )
+    service = SearchService(FakeEmbeddings(), vector_store, documents, sources)
+
+    results = asyncio.run(service.search("Pool", limit=2, path_filter="guides"))
+
+    assert [result.path for result in results] == ["guides/vercel.md"]
+
+
+def test_search_boosts_long_exact_api_symbol_matches(repositories) -> None:
+    sources, documents = repositories
+    documents.add_document("document-1", "source-1", "api.md", "API", "hash-1")
+    documents.add_document("document-2", "source-1", "overview.md", "Overview", "hash-2")
+    documents.add_chunk(
+        "symbol-hit",
+        "document-1",
+        "source-1",
+        0,
+        "Use attachDatabasePool with Drizzle ORM.",
+        _metadata("document-1", 0, path="api.md", title="API"),
+    )
+    documents.add_chunk(
+        "semantic-hit",
+        "document-2",
+        "source-1",
+        0,
+        "Database pooling overview.",
+        _metadata("document-2", 0, path="overview.md", title="Overview"),
+    )
+
+    vector_store = FakeVectorStore(
+        [
+            _hit("semantic-hit", "document-2", 0, 0.91, path="overview.md", title="Overview"),
+            _hit("symbol-hit", "document-1", 0, 0.88, path="api.md", title="API"),
+        ]
+    )
+    service = SearchService(FakeEmbeddings(), vector_store, documents, sources, use_fts=False)
+
+    results = asyncio.run(service.search("attachDatabasePool Drizzle ORM", limit=2))
+
+    assert results[0].chunk_id == "symbol-hit"
+
+
+def test_search_result_includes_source_url_from_metadata(repositories) -> None:
+    sources, documents = repositories
+    documents.add_document("document-1", "source-1", "api.md", "API", "hash-1")
+    documents.add_chunk(
+        "chunk-1",
+        "document-1",
+        "source-1",
+        0,
+        "Use the API.",
+        {
+            **_metadata("document-1", 0, path="api.md", title="API"),
+            "source_url": "https://example.com/docs/api",
+        },
+    )
+    vector_store = FakeVectorStore(
+        [
+            VectorSearchHit(
+                chunk_id="chunk-1",
+                score=0.9,
+                text="Use the API.",
+                metadata={
+                    **_metadata("document-1", 0, path="api.md", title="API"),
+                    "source_url": "https://example.com/docs/api",
+                },
+            )
+        ]
+    )
+    service = SearchService(FakeEmbeddings(), vector_store, documents, sources, use_fts=False)
+
+    results = asyncio.run(service.search("API", limit=1))
+
+    assert results[0].source_url == "https://example.com/docs/api"
+
+
 def test_search_context_trims_chunk_overlap(repositories) -> None:
     sources, documents = repositories
     overlap = "shared context that should only appear once in assembled output"
@@ -229,6 +341,9 @@ def _hit(
     return VectorSearchHit(
         chunk_id=chunk_id,
         score=score,
-        text=f"Raw {chunk_id}",
+        text={
+            "symbol-hit": "Use attachDatabasePool with Drizzle ORM.",
+            "semantic-hit": "Database pooling overview.",
+        }.get(chunk_id, f"Raw {chunk_id}"),
         metadata=_metadata(document_id, ordinal, path=path, title=title),
     )

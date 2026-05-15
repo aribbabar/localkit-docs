@@ -297,6 +297,7 @@ def create_app() -> FastAPI:
             query=request.query,
             limit=request.limit,
             source_id=request.source_id,
+            path_filter=request.path_filter,
         )
         return {"results": [result.__dict__ for result in results]}
 

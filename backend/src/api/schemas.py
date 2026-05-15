@@ -30,3 +30,4 @@ class SearchRequest(BaseModel):
     query: str
     limit: int = 8
     source_id: str | None = None
+    path_filter: str | None = None

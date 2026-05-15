@@ -8,6 +8,7 @@ from typing import Any
 from core.ids import stable_id
 from core.progress import ProgressCallback
 from ingest.chunking import chunk_text
+from ingest.cleaning import clean_document_text, extract_source_url, infer_document_title
 from ingest.files import iter_indexable_files, read_text_file
 from storage.embeddings import EmbeddingProvider
 from storage.repositories import DocumentRepository, SourceRecord, SourceRepository
@@ -82,10 +83,12 @@ class Indexer:
                         "current_item": relative_path,
                     }
                 )
-            text = read_text_file(file_path)
-            content_hash = sha256(text.encode("utf-8")).hexdigest()
+            raw_text = read_text_file(file_path)
+            text = clean_document_text(raw_text)
+            content_hash = sha256(raw_text.encode("utf-8")).hexdigest()
             document_id = stable_id(source.id, relative_path, content_hash)
-            title = infer_title(text, relative_path)
+            title = infer_document_title(raw_text, relative_path)
+            source_url = extract_source_url(raw_text)
             document_records.append(
                 {
                     "id": document_id,
@@ -104,6 +107,7 @@ class Indexer:
                     "source_id": source.id,
                     "document_id": document_id,
                     "path": relative_path,
+                    "source_url": source_url or "",
                     "title": chunk_title,
                     "ordinal": chunk.ordinal,
                     "section_path": list(chunk.path),
@@ -114,6 +118,7 @@ class Indexer:
                     "source_id": source.id,
                     "document_id": document_id,
                     "path": relative_path,
+                    "source_url": source_url or "",
                     "title": chunk_title,
                     "ordinal": chunk.ordinal,
                     "section_path": " > ".join(chunk.path),

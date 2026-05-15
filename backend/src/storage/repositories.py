@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import delete, func, text as sql_text
@@ -19,6 +20,8 @@ class SourceRecord:
     stored_path: str
     status: str
     options: dict[str, Any]
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -48,6 +51,8 @@ def _model_to_source(source: Source) -> SourceRecord:
         stored_path=source.stored_path,
         status=source.status,
         options=json.loads(source.options_json or "{}"),
+        created_at=source.created_at,
+        updated_at=source.updated_at,
     )
 
 
@@ -345,12 +350,14 @@ class DocumentRepository:
         query: str,
         limit: int = 8,
         source_id: str | None = None,
+        path_filter: str | None = None,
     ) -> list[TextSearchHit]:
         fts_queries = fts_query_candidates(query)
         if not fts_queries:
             return []
 
         source_filter = "AND f.source_id = :source_id" if source_id else ""
+        path_clause = "AND f.path LIKE :path_filter" if path_filter else ""
         statement = sql_text(
             f"""
             SELECT
@@ -367,6 +374,7 @@ class DocumentRepository:
             JOIN chunks c ON c.id = f.chunk_id
             WHERE chunks_fts MATCH :query
               {source_filter}
+              {path_clause}
             ORDER BY fts_score
             LIMIT :limit
             """
@@ -378,6 +386,8 @@ class DocumentRepository:
                 params: dict[str, object] = {"query": fts_query, "limit": limit}
                 if source_id:
                     params["source_id"] = source_id
+                if path_filter:
+                    params["path_filter"] = path_like_pattern(path_filter)
                 rows = session.execute(statement, params).mappings().all()
                 if rows:
                     break
@@ -478,6 +488,16 @@ def query_tokens(query: str) -> list[str]:
         if len(token) > 1 and token.lower() not in STOPWORDS
     ]
     return meaningful or tokens
+
+
+def path_like_pattern(path_filter: str) -> str:
+    normalized = path_filter.strip().replace("\\", "/")
+    if not normalized:
+        return "%"
+    like = normalized.replace("*", "%")
+    if "%" not in like and "_" not in like:
+        like = f"%{like}%"
+    return like
 
 
 def _quoted_fts_token(token: str) -> str:

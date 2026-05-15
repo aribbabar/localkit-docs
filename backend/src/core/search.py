@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import fnmatch
 import re
 
 from storage.embeddings import EmbeddingProvider
 from storage.repositories import DocumentRepository, SourceRepository, TextSearchHit
 from storage.vector_store import VectorSearchHit
+from core.urls import canonical_url_from_origin_path
 
 
 @dataclass(frozen=True)
@@ -17,6 +19,7 @@ class SearchResult:
     source_id: str
     path: str
     title: str
+    source_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -55,19 +58,33 @@ class SearchService:
         self.max_context_chars = max_context_chars
         self.use_fts = use_fts
 
-    async def search(self, query: str, limit: int = 8, source_id: str | None = None) -> list[SearchResult]:
+    async def search(
+        self,
+        query: str,
+        limit: int = 8,
+        source_id: str | None = None,
+        path_filter: str | None = None,
+    ) -> list[SearchResult]:
         limit = max(1, limit)
         query_embedding = (await self.embeddings.embed([query]))[0]
         overfetch_limit = min(max(limit * self.overfetch_multiplier, limit), self.max_overfetch)
         vector_limit = min(max(overfetch_limit * self.vector_multiplier, overfetch_limit), self.max_vector_overfetch)
+        if path_filter:
+            vector_limit = self.max_vector_overfetch
         vector_hits = self.vector_store.search(
             query_embedding,
             limit=vector_limit,
             source_id=source_id,
             embedding_model=self.embeddings.identity,
         )
+        vector_hits = _filter_hits_by_path(vector_hits, path_filter)
         fts_hits = (
-            self.documents.search_text(query, limit=overfetch_limit, source_id=source_id)
+            self.documents.search_text(
+                query,
+                limit=overfetch_limit,
+                source_id=source_id,
+                path_filter=path_filter,
+            )
             if self.documents and self.use_fts
             else []
         )
@@ -185,6 +202,7 @@ class SearchService:
                         source_id=str(primary_hit.metadata.get("source_id", "")),
                         path=str(primary_hit.metadata.get("path", "")),
                         title=str(primary_hit.metadata.get("title", "")),
+                        source_url=self._source_url_for_hit(primary_hit),
                     ),
                     document_id=document_id,
                 )
@@ -251,6 +269,7 @@ class SearchService:
                 source_id=str(hit.metadata.get("source_id", "")),
                 path=str(hit.metadata.get("path", "")),
                 title=str(hit.metadata.get("title", "")),
+                source_url=self._source_url_for_hit(hit),
             ),
             document_id=document_id or hit.chunk_id,
         )
@@ -283,11 +302,26 @@ class SearchService:
         if terms:
             text = hit.text.lower()
             coverage = sum(1 for term in terms if term in text) / len(terms)
-            boost += min(0.025, coverage * 0.025)
+            boost += min(0.05, coverage * 0.05)
+            long_exact_matches = sum(1 for term in terms if len(term) >= 8 and term in text)
+            boost += min(0.12, long_exact_matches * 0.04)
         if source_name and any(term in source_name for term in terms):
             boost += 0.005
 
         return max(0.0, score + boost)
+
+    def _source_url_for_hit(self, hit: VectorSearchHit) -> str | None:
+        source_url = _metadata_string(hit.metadata.get("source_url"))
+        if source_url:
+            return source_url
+        source_id = str(hit.metadata.get("source_id", ""))
+        path = str(hit.metadata.get("path", ""))
+        if not self.sources or not source_id or not path:
+            return None
+        source = self.sources.get(source_id)
+        if not source:
+            return None
+        return canonical_url_from_origin_path(source.origin, path)
 
     def _diversify(self, candidates: list[_SearchCandidate], limit: int) -> list[_SearchCandidate]:
         if len(candidates) <= limit:
@@ -390,6 +424,35 @@ def _metadata_int(value: object) -> int | None:
     if isinstance(value, str) and value.isdigit():
         return int(value)
     return None
+
+
+def _metadata_string(value: object) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _filter_hits_by_path(
+    hits: list[VectorSearchHit],
+    path_filter: str | None,
+) -> list[VectorSearchHit]:
+    if not path_filter:
+        return hits
+    return [
+        hit
+        for hit in hits
+        if _path_matches(str(hit.metadata.get("path", "")), path_filter)
+    ]
+
+
+def _path_matches(path: str, path_filter: str) -> bool:
+    normalized_path = path.replace("\\", "/").lower()
+    normalized_filter = path_filter.replace("\\", "/").strip().lower()
+    if not normalized_filter:
+        return True
+    if "*" in normalized_filter:
+        return fnmatch.fnmatch(normalized_path, normalized_filter)
+    return normalized_filter in normalized_path
 
 
 def _section_path(chunk: dict[str, object]) -> list[str]:

@@ -13,6 +13,8 @@ export type Source = {
   stored_path: string
   status: string
   options: Record<string, unknown>
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 export type SearchResult = {
@@ -22,6 +24,7 @@ export type SearchResult = {
   text: string
   source_id: string
   path: string
+  source_url?: string | null
   title: string
 }
 

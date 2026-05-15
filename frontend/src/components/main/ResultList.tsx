@@ -46,7 +46,7 @@ export function ResultList({ busy, onOpenDocument, query, results, selectedSourc
               </span>
               <span>
                 <strong>{getDocumentTitle(result)}</strong>
-                <small>{result.path}</small>
+                <small title={result.source_url || result.path}>{result.source_url || result.path}</small>
               </span>
               <b title={`Score ${result.score.toFixed(3)}`}>
                 {getRelevanceLabel(result.score)}
