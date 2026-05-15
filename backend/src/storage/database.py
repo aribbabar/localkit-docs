@@ -142,6 +142,18 @@ class Database:
 
     def _initialize_fts(self) -> None:
         with self.engine.begin() as connection:
+            fts_exists = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT 1
+                        FROM sqlite_master
+                        WHERE type = 'table' AND name = 'chunks_fts'
+                        """
+                    )
+                ).scalar()
+                is not None
+            )
             connection.execute(
                 text(
                     """
@@ -157,14 +169,14 @@ class Database:
                     """
                 )
             )
-            connection.execute(text("DELETE FROM chunks_fts"))
-            connection.execute(
-                text(
-                    """
-                    INSERT INTO chunks_fts(chunk_id, source_id, document_id, content, title, path)
-                    SELECT c.id, c.source_id, c.document_id, c.text, COALESCE(d.title, ''), d.path
-                    FROM chunks c
-                    JOIN documents d ON d.id = c.document_id
-                    """
+            if not fts_exists:
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO chunks_fts(chunk_id, source_id, document_id, content, title, path)
+                        SELECT c.id, c.source_id, c.document_id, c.text, COALESCE(d.title, ''), d.path
+                        FROM chunks c
+                        JOIN documents d ON d.id = c.document_id
+                        """
+                    )
                 )
-            )

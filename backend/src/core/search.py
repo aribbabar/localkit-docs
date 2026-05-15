@@ -358,6 +358,12 @@ def _assemble_text(chunks: list[dict[str, object]], max_chars: int) -> str:
         text = str(chunk.get("text", "")).strip()
         if not text:
             continue
+        if parts and text == parts[-1]:
+            continue
+        if parts:
+            text = _trim_overlap(parts[-1], text)
+            if not text:
+                continue
         separator = "\n\n" if parts else ""
         next_length = used + len(separator) + len(text)
         if next_length > max_chars:
@@ -368,6 +374,14 @@ def _assemble_text(chunks: list[dict[str, object]], max_chars: int) -> str:
         parts.append(f"{separator}{text}")
         used = next_length
     return "".join(parts)
+
+
+def _trim_overlap(previous: str, current: str, max_overlap: int = 400) -> str:
+    limit = min(len(previous), len(current), max_overlap)
+    for size in range(limit, 39, -1):
+        if previous[-size:] == current[:size]:
+            return current[size:].lstrip()
+    return current
 
 
 def _metadata_int(value: object) -> int | None:

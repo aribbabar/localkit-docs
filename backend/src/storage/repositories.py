@@ -286,6 +286,43 @@ class DocumentRepository:
             ).one()
         return _model_to_document(document, int(chunk_count))
 
+    def resolve_document(self, source_id: str, document_id_or_path: str) -> DocumentRecord | None:
+        document = self.get_document(document_id_or_path)
+        if document and document.source_id == source_id:
+            return document
+
+        path = document_id_or_path.replace("\\", "/").strip()
+        with self.database.session() as session:
+            exact = session.exec(
+                select(Document)
+                .where(Document.source_id == source_id)
+                .where(Document.path == path)
+            ).first()
+            if exact:
+                chunk_count = session.exec(
+                    select(func.count()).select_from(Chunk).where(Chunk.document_id == exact.id)
+                ).one()
+                return _model_to_document(exact, int(chunk_count))
+
+            suffix_matches = session.exec(
+                select(Document)
+                .where(Document.source_id == source_id)
+                .where(Document.path.endswith(path))
+                .order_by(Document.path.asc())
+            ).all()
+            if len(suffix_matches) == 1:
+                match = suffix_matches[0]
+                chunk_count = session.exec(
+                    select(func.count()).select_from(Chunk).where(Chunk.document_id == match.id)
+                ).one()
+                return _model_to_document(match, int(chunk_count))
+
+        return None
+
+    def get_document_text(self, document_id: str) -> str:
+        chunks = self.list_chunks_by_document(document_id)
+        return _join_chunk_text(str(chunk.get("text", "")) for chunk in chunks)
+
     def list_chunks_by_document(self, document_id: str) -> list[dict[str, Any]]:
         with self.database.session() as session:
             chunks = session.exec(
@@ -445,3 +482,25 @@ def query_tokens(query: str) -> list[str]:
 
 def _quoted_fts_token(token: str) -> str:
     return f'"{token.replace(chr(34), chr(34) * 2)}"'
+
+
+def _join_chunk_text(texts) -> str:
+    parts: list[str] = []
+    for text in texts:
+        normalized = str(text).strip()
+        if not normalized:
+            continue
+        if parts and normalized == parts[-1]:
+            continue
+        if parts:
+            normalized = _trim_overlap(parts[-1], normalized)
+        parts.append(normalized)
+    return "\n\n".join(parts)
+
+
+def _trim_overlap(previous: str, current: str, max_overlap: int = 400) -> str:
+    limit = min(len(previous), len(current), max_overlap)
+    for size in range(limit, 39, -1):
+        if previous[-size:] == current[:size]:
+            return current[size:].lstrip()
+    return current

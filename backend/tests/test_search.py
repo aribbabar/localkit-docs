@@ -165,6 +165,41 @@ def test_search_uses_fts_to_find_exact_terms_missed_by_vector_search(repositorie
     assert "retry_budget" in results[0].text
 
 
+def test_search_context_trims_chunk_overlap(repositories) -> None:
+    sources, documents = repositories
+    overlap = "shared context that should only appear once in assembled output"
+    documents.add_document("document-1", "source-1", "guide.md", "Guide", "hash")
+    documents.add_chunk(
+        "chunk-0",
+        "document-1",
+        "source-1",
+        0,
+        f"Before {overlap}",
+        _metadata("document-1", 0, title="Guide"),
+    )
+    documents.add_chunk(
+        "chunk-1",
+        "document-1",
+        "source-1",
+        1,
+        f"{overlap} after",
+        _metadata("document-1", 1, title="Guide"),
+    )
+    vector_store = FakeVectorStore([_hit("chunk-1", "document-1", 1, 0.90, title="Guide")])
+    service = SearchService(
+        FakeEmbeddings(),
+        vector_store,
+        documents,
+        sources,
+        context_window=1,
+        use_fts=False,
+    )
+
+    results = asyncio.run(service.search("guide", limit=1))
+
+    assert results[0].text == f"Before {overlap}\n\nafter"
+
+
 def _metadata(
     document_id: str,
     ordinal: int,

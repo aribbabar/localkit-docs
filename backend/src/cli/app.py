@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -95,7 +97,10 @@ def search(
     docs: Annotated[str, typer.Argument(help="Docs source name or id to search.")],
     query: Annotated[str, typer.Argument(help="Natural language search query.")],
     limit: Annotated[int, typer.Option("--limit", "-l")] = 8,
+    output: Annotated[str, typer.Option("--output", help="Output format: text or json.")] = "text",
+    chars: Annotated[int, typer.Option("--chars", help="Maximum snippet characters per result. Use 0 for full text.")] = 1200,
 ) -> None:
+    output = _validate_output(output)
     container, _, _, search_service, _ = _services()
     source = container.sources.resolve(docs)
     if not source:
@@ -103,16 +108,86 @@ def search(
     resolved_source_id = source.id
     search_query = query
     results = asyncio.run(search_service.search(search_query, limit=limit, source_id=resolved_source_id))
+    if output == "json":
+        typer.echo(
+            json.dumps(
+                {
+                    "source": _source_payload(source, container.documents.source_stats(source.id)),
+                    "query": search_query,
+                    "results": [_search_result_payload(result, chars, query=search_query) for result in results],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+
     for index, result in enumerate(results, start=1):
         typer.echo(f"\n{index}. {result.title or result.path}  score={result.score:.3f}")
         typer.echo(f"   {result.path} ({result.source_id})")
-        typer.echo(indent(result.text[:700].replace("\n", " "), "   "))
+        typer.echo(indent(_clip_text(result.text, chars, query=search_query), "   "))
+
+
+@app.command("show")
+def show(
+    docs: Annotated[str, typer.Argument(help="Docs source name or id.")],
+    document: Annotated[str, typer.Argument(help="Document id, exact path, or unique path suffix.")],
+    output: Annotated[str, typer.Option("--output", help="Output format: text or json.")] = "text",
+    chars: Annotated[int, typer.Option("--chars", help="Maximum document characters. Use 0 for full text.")] = 0,
+) -> None:
+    output = _validate_output(output)
+    container, _, _, _, _ = _services()
+    source = container.sources.resolve(docs)
+    if not source:
+        raise typer.BadParameter(f"Docs source not found by name or id: {docs}")
+
+    record = container.documents.resolve_document(source.id, document)
+    if not record:
+        raise typer.BadParameter(f"Document not found by id or path in {source.name}: {document}")
+
+    text = container.documents.get_document_text(record.id)
+    if output == "json":
+        typer.echo(
+            json.dumps(
+                {
+                    "source": _source_payload(source, container.documents.source_stats(source.id)),
+                    "document": _document_payload(record, text, chars),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    typer.echo(f"{record.title or record.path}")
+    typer.echo(f"{record.path} ({record.id})")
+    typer.echo("")
+    typer.echo(_clip_text(text, chars))
 
 
 @app.command("list")
-def list_sources() -> None:
+def list_sources(
+    output: Annotated[str, typer.Option("--output", help="Output format: text or json.")] = "text",
+) -> None:
+    output = _validate_output(output)
     container, _, _, _, _ = _services()
-    for source in container.sources.list():
+    sources = container.sources.list()
+    if output == "json":
+        typer.echo(
+            json.dumps(
+                {
+                    "sources": [
+                        _source_payload(source, container.documents.source_stats(source.id))
+                        for source in sources
+                    ]
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    for source in sources:
         stats = container.documents.source_stats(source.id)
         typer.echo(
             f"{source.id}  {source.kind:<6}  {source.status:<8}  "
@@ -140,6 +215,95 @@ def serve(
 
 def indent(value: str, prefix: str) -> str:
     return "\n".join(f"{prefix}{line}" for line in value.splitlines())
+
+
+def _validate_output(output: str) -> str:
+    normalized = output.strip().lower()
+    if normalized not in {"text", "json"}:
+        raise typer.BadParameter("Output format must be 'text' or 'json'.")
+    return normalized
+
+
+def _clip_text(text: str, chars: int, *, query: str | None = None) -> str:
+    if chars <= 0 or len(text) <= chars:
+        return text
+    if not query:
+        return f"{text[:chars].rstrip()}..."
+
+    match_start = _first_query_match(text, query)
+    if match_start is None or match_start <= chars // 3:
+        return f"{text[:chars].rstrip()}..."
+
+    context_before = max(120, chars // 3)
+    start = max(0, match_start - context_before)
+    start = _move_to_boundary(text, start)
+    end = min(len(text), start + chars)
+    prefix = "... " if start > 0 else ""
+    suffix = "..." if end < len(text) else ""
+    return f"{prefix}{text[start:end].strip()}{suffix}"
+
+
+def _first_query_match(text: str, query: str) -> int | None:
+    lowered = text.lower()
+    matches = [
+        lowered.find(term)
+        for term in _query_terms(query)
+        if len(term) > 1 and lowered.find(term) >= 0
+    ]
+    return min(matches) if matches else None
+
+
+def _query_terms(query: str) -> list[str]:
+    return [
+        term.lower()
+        for term in re.findall(r"[a-z0-9_/@{}.-]{2,}", query)
+        if term.lower() not in {"and", "for", "how", "the", "with", "what", "when", "where"}
+    ]
+
+
+def _move_to_boundary(text: str, index: int) -> int:
+    newline = text.rfind("\n", 0, index)
+    if newline >= max(0, index - 160):
+        return newline + 1
+    space = text.rfind(" ", 0, index)
+    if space >= max(0, index - 80):
+        return space + 1
+    return index
+
+
+def _source_payload(source, stats: dict[str, int]) -> dict[str, object]:
+    return {
+        "id": source.id,
+        "name": source.name,
+        "kind": source.kind,
+        "status": source.status,
+        "origin": source.origin,
+        "documents": stats["documents"],
+        "chunks": stats["chunks"],
+    }
+
+
+def _search_result_payload(result, chars: int, *, query: str | None = None) -> dict[str, object]:
+    return {
+        "chunk_id": result.chunk_id,
+        "document_id": result.document_id,
+        "score": result.score,
+        "source_id": result.source_id,
+        "path": result.path,
+        "title": result.title,
+        "text": _clip_text(result.text, chars, query=query),
+    }
+
+
+def _document_payload(document, text: str, chars: int) -> dict[str, object]:
+    return {
+        "id": document.id,
+        "source_id": document.source_id,
+        "path": document.path,
+        "title": document.title,
+        "chunk_count": document.chunk_count,
+        "text": _clip_text(text, chars),
+    }
 
 
 def _progress_echo() -> ProgressCallback:

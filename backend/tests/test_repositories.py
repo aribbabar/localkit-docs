@@ -40,3 +40,48 @@ def test_repositories_persist_sources_documents_and_chunks(tmp_path: Path) -> No
         assert documents.source_stats(source.id) == {"documents": 0, "chunks": 0}
     finally:
         database.close()
+
+
+def test_resolve_document_by_unique_suffix_and_join_chunk_text(tmp_path: Path) -> None:
+    database = Database(tmp_path / "localkit.sqlite3")
+    try:
+        sources = SourceRepository(database)
+        documents = DocumentRepository(database)
+        source = SourceRecord(
+            id="source-1",
+            name="Docs",
+            kind="local",
+            origin="E:/docs",
+            stored_path="E:/stored",
+            status="indexed",
+            options={},
+        )
+
+        sources.upsert(source)
+        documents.add_document("document-1", source.id, "guides/auth/index.md", "Auth", "hash")
+        documents.add_chunk(
+            "chunk-1",
+            "document-1",
+            source.id,
+            0,
+            "First paragraph with shared tail that is long enough to trim.",
+            {"path": "guides/auth/index.md", "title": "Auth"},
+        )
+        documents.add_chunk(
+            "chunk-2",
+            "document-1",
+            source.id,
+            1,
+            "shared tail that is long enough to trim. Second paragraph.",
+            {"path": "guides/auth/index.md", "title": "Auth"},
+        )
+
+        record = documents.resolve_document(source.id, "auth/index.md")
+
+        assert record is not None
+        assert record.id == "document-1"
+        assert documents.get_document_text(record.id) == (
+            "First paragraph with shared tail that is long enough to trim.\n\nSecond paragraph."
+        )
+    finally:
+        database.close()
