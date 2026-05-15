@@ -7,6 +7,7 @@ import { SettingsPanel } from './main/SettingsPanel'
 import { SourceList } from './main/SourceList'
 import { Topbar } from './main/Topbar'
 import type { BusyTask, DocumentDetail, IndexedDocument, SearchResult, Source } from '../types'
+import { classNames } from '../utils/classNames'
 import styles from './MainPanel.module.css'
 
 type Route = { page: 'home' } | { page: 'settings' } | { page: 'source'; sourceId: string }
@@ -130,7 +131,7 @@ export function MainPanel({
   }
 
   return (
-    <section className={styles.panel}>
+    <section className={classNames(styles.panel, styles.sourcePanel)}>
       <Topbar
         busy={busy}
         onBackToSources={onBackToSources}
