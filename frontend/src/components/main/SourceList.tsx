@@ -1,4 +1,4 @@
-import { FiArrowRight, FiClock, FiFolder, FiRefreshCw, FiServer, FiTrash2 } from 'react-icons/fi'
+import { FiClock, FiFolder, FiRefreshCw, FiServer, FiTrash2 } from 'react-icons/fi'
 import { ImSpinner2 } from 'react-icons/im'
 import { classNames } from '../../utils/classNames'
 import type { BusyTask, Source } from '../../types'
@@ -47,11 +47,16 @@ export function SourceList({
       </header>
       <div className={classNames(styles.list, styles.sourceGrid)}>
         {sources.map((source) => (
-          <article className={styles.sourceRow} key={source.id}>
+          <article
+            className={styles.sourceRow}
+            key={source.id}
+            onClick={() => {
+              if (busy === null) onSelectSource(source.id)
+            }}
+          >
             <button
               className={styles.sourceSelectButton}
               type="button"
-              onClick={() => onSelectSource(source.id)}
               disabled={busy !== null}
             >
               <span className={styles.sourceIcon} aria-hidden="true">
@@ -66,14 +71,16 @@ export function SourceList({
                 <span className={styles.statusDot} />
                 {getStatusLabel(source.status)}
               </span>
-              <FiArrowRight className={styles.sourceArrow} aria-hidden="true" />
             </button>
             <div className={styles.rowActions}>
               <button
                 className={classNames(controls.button, controls.iconButton)}
                 type="button"
                 title="Reindex"
-                onClick={() => onReindex(source.id)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onReindex(source.id)
+                }}
                 disabled={busy !== null}
               >
                 {busy === `index:${source.id}` ? (
@@ -86,7 +93,10 @@ export function SourceList({
                 className={classNames(controls.button, controls.iconButton, controls.danger)}
                 type="button"
                 title="Remove"
-                onClick={() => onRemove(source.id)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onRemove(source.id)
+                }}
                 disabled={busy !== null}
               >
                 <FiTrash2 size={16} />

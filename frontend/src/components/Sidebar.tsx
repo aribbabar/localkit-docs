@@ -3,7 +3,6 @@ import { FiSettings } from 'react-icons/fi'
 import { ProgressPanel } from './ProgressPanel'
 import { Brand } from './sidebar/Brand'
 import { LocalDocsForm } from './sidebar/LocalDocsForm'
-import { MetricGrid } from './sidebar/MetricGrid'
 import { RemoteDocsForm } from './sidebar/RemoteDocsForm'
 import type { BusyTask, FolderFile, OperationProgress } from '../types'
 import styles from './Sidebar.module.css'
@@ -42,7 +41,6 @@ export function Sidebar(props: SidebarProps) {
     <aside className={styles.sidebar}>
       <div className={styles.consoleIntro}>
         <Brand message={props.message} />
-        <MetricGrid sourcesCount={props.sourcesCount} indexedSources={props.indexedSources} />
         {props.activeProgress ? <ProgressPanel progress={props.activeProgress} /> : null}
         <button className={styles.settingsButton} type="button" onClick={props.onOpenSettings}>
           <FiSettings size={16} />

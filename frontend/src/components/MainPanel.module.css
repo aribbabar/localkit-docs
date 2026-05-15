@@ -229,7 +229,11 @@
 
 .sourceSection {
   flex: 1;
-  border-bottom: 0;
+  margin: 0 24px 48px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
 }
 
 .documentsSection {
@@ -250,10 +254,11 @@
 }
 
 .sourceGrid {
-  padding: 18px 24px 36px;
+  padding: 18px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
+  overflow: visible;
 }
 
 .sourceRow {
@@ -268,6 +273,25 @@
   background: var(--panel);
   box-shadow: 0 1px 0 oklch(35% 0.025 218 / 0.04);
   overflow: hidden;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.sourceRow:hover,
+.sourceRow:focus-within {
+  border-color: var(--border-strong);
+  background: var(--accent-wash);
+  box-shadow: 0 8px 18px oklch(35% 0.025 218 / 0.08);
+}
+
+.sourceRow:focus-within {
+  box-shadow:
+    0 0 0 3px var(--accent-soft),
+    0 8px 18px oklch(35% 0.025 218 / 0.08);
 }
 
 .sourceRow strong,
@@ -312,10 +336,6 @@
   cursor: pointer;
 }
 
-.sourceSelectButton:hover:not(:disabled) {
-  background: var(--accent-wash);
-}
-
 .sourceSelectButton:disabled {
   cursor: not-allowed;
   opacity: 0.56;
@@ -331,10 +351,6 @@
   border-radius: 8px;
   background: var(--input);
   color: var(--accent);
-}
-
-.sourceArrow {
-  color: var(--text-subtle);
 }
 
 .rowActions {
@@ -667,6 +683,10 @@
   .sourceGrid {
     padding: 14px;
     grid-template-columns: 1fr;
+  }
+
+  .sourceSection {
+    margin: 0 14px 32px;
   }
 
   .sourceRow {
