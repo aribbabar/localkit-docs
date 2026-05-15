@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchOperation } from '../api/docsApi'
 import type { OperationProgress } from '../types'
 
@@ -10,60 +10,81 @@ export function useOperationProgress() {
   const progressTimeoutRef = useRef<number | null>(null)
   const progressIntervalRef = useRef<number | null>(null)
 
-  useEffect(() => {
-    const savedOperationId = readSavedOperationId()
-    if (savedOperationId) {
-      startProgressPolling(savedOperationId)
-    }
-
-    return () => {
-      if (progressTimeoutRef.current !== null) window.clearTimeout(progressTimeoutRef.current)
-      if (progressIntervalRef.current !== null) window.clearInterval(progressIntervalRef.current)
+  const clearProgressInterval = useCallback(() => {
+    if (progressIntervalRef.current !== null) {
+      window.clearInterval(progressIntervalRef.current)
+      progressIntervalRef.current = null
     }
   }, [])
 
-  async function refreshOperation(operationId: string): Promise<OperationProgress | null> {
-    const progress = await fetchOperation(operationId)
-    if (!progress) return null
-
-    setActiveProgress(progress)
-    if (isTerminalProgress(progress)) {
-      clearSavedOperation(operationId)
-      clearProgressInterval()
+  const clearProgressTimeout = useCallback(() => {
+    if (progressTimeoutRef.current !== null) {
+      window.clearTimeout(progressTimeoutRef.current)
+      progressTimeoutRef.current = null
     }
-    return progress
-  }
+  }, [])
 
-  function startProgressPolling(operationId: string): () => Promise<void> {
-    clearProgressTimeout()
-    clearProgressInterval()
-    saveOperationId(operationId)
+  const refreshOperation = useCallback(
+    async (operationId: string): Promise<OperationProgress | null> => {
+      const progress = await fetchOperation(operationId)
+      if (!progress) return null
 
-    setActiveProgress({
-      operation_id: operationId,
-      phase: 'queued',
-      status: 'running',
-      message: 'Waiting for operation to start',
-      current: 0,
-      events: [],
-    })
-    void refreshOperation(operationId)
-
-    progressIntervalRef.current = window.setInterval(() => {
-      void refreshOperation(operationId)
-    }, 500)
-
-    return async () => {
-      clearProgressInterval()
-      const progress = await refreshOperation(operationId)
-      if (!progress || isTerminalProgress(progress)) {
+      setActiveProgress(progress)
+      if (isTerminalProgress(progress)) {
         clearSavedOperation(operationId)
+        clearProgressInterval()
       }
-      scheduleProgressClear(operationId)
-    }
-  }
+      return progress
+    },
+    [clearProgressInterval],
+  )
 
-  async function waitForOperation(operationId: string): Promise<OperationProgress> {
+  const scheduleProgressClear = useCallback(
+    (operationId: string) => {
+      clearProgressTimeout()
+      progressTimeoutRef.current = window.setTimeout(() => {
+        setActiveProgress((current) =>
+          current?.operation_id === operationId ? null : current,
+        )
+        progressTimeoutRef.current = null
+      }, 3500)
+    },
+    [clearProgressTimeout],
+  )
+
+  const startProgressPolling = useCallback(
+    (operationId: string): () => Promise<void> => {
+      clearProgressTimeout()
+      clearProgressInterval()
+      saveOperationId(operationId)
+
+      setActiveProgress({
+        operation_id: operationId,
+        phase: 'queued',
+        status: 'running',
+        message: 'Waiting for operation to start',
+        current: 0,
+        events: [],
+      })
+      void refreshOperation(operationId)
+
+      progressIntervalRef.current = window.setInterval(() => {
+        void refreshOperation(operationId)
+      }, 500)
+
+      return async () => {
+        clearProgressInterval()
+        const progress = await refreshOperation(operationId)
+        if (!progress || isTerminalProgress(progress)) {
+          clearSavedOperation(operationId)
+        }
+        scheduleProgressClear(operationId)
+      }
+    },
+    [clearProgressInterval, clearProgressTimeout, refreshOperation, scheduleProgressClear],
+  )
+
+  const waitForOperation = useCallback(async (operationId: string): Promise<OperationProgress> => {
     while (true) {
       const progress = await refreshOperation(operationId)
       if (progress && isTerminalProgress(progress)) {
@@ -74,31 +95,23 @@ export function useOperationProgress() {
       }
       await sleep(500)
     }
-  }
+  }, [refreshOperation])
 
-  function clearProgressInterval() {
-    if (progressIntervalRef.current !== null) {
-      window.clearInterval(progressIntervalRef.current)
-      progressIntervalRef.current = null
+  useEffect(() => {
+    const savedOperationId = readSavedOperationId()
+    let resumeTimeout: number | null = null
+    if (savedOperationId) {
+      resumeTimeout = window.setTimeout(() => {
+        startProgressPolling(savedOperationId)
+      }, 0)
     }
-  }
 
-  function clearProgressTimeout() {
-    if (progressTimeoutRef.current !== null) {
-      window.clearTimeout(progressTimeoutRef.current)
-      progressTimeoutRef.current = null
+    return () => {
+      if (resumeTimeout !== null) window.clearTimeout(resumeTimeout)
+      if (progressTimeoutRef.current !== null) window.clearTimeout(progressTimeoutRef.current)
+      if (progressIntervalRef.current !== null) window.clearInterval(progressIntervalRef.current)
     }
-  }
-
-  function scheduleProgressClear(operationId: string) {
-    clearProgressTimeout()
-    progressTimeoutRef.current = window.setTimeout(() => {
-      setActiveProgress((current) =>
-        current?.operation_id === operationId ? null : current,
-      )
-      progressTimeoutRef.current = null
-    }, 3500)
-  }
+  }, [startProgressPolling])
 
   return { activeProgress, startProgressPolling, waitForOperation }
 }
