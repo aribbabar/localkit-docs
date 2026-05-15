@@ -18,10 +18,22 @@ function getSourceLabel(source: Source) {
   return source.kind === 'local' ? 'Local folder' : 'Remote site'
 }
 
+function getSourceOriginLabel(source: Source) {
+  if (source.kind !== 'remote') return source.origin
+
+  try {
+    const url = new URL(source.origin)
+    return url.origin
+  } catch {
+    return source.origin
+  }
+}
+
 function getStatusLabel(status: string) {
   if (status === 'indexed') return 'Ready'
   if (status === 'indexing') return 'Indexing'
   if (status === 'pending') return 'Pending'
+  if (status === 'failed') return 'Failed'
   return status
 }
 
@@ -50,28 +62,36 @@ export function SourceList({
           <article
             className={styles.sourceRow}
             key={source.id}
+            role="button"
+            tabIndex={busy === null ? 0 : -1}
+            aria-label={`Open ${source.name}`}
             onClick={() => {
               if (busy === null) onSelectSource(source.id)
             }}
+            onKeyDown={(event) => {
+              if (busy !== null || event.currentTarget !== event.target) return
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onSelectSource(source.id)
+              }
+            }}
           >
-            <button
-              className={styles.sourceSelectButton}
-              type="button"
-              disabled={busy !== null}
-            >
+            <div className={styles.sourceCardHeader}>
               <span className={styles.sourceIcon} aria-hidden="true">
                 {source.kind === 'local' ? <FiFolder /> : <FiServer />}
               </span>
-              <span className={styles.sourceCopy}>
+              <span className={styles.sourceIdentity}>
                 <strong>{source.name}</strong>
-                <span>{source.origin}</span>
                 <small>{getSourceLabel(source)}</small>
               </span>
               <span className={classNames(styles.status, styles[source.status])}>
                 <span className={styles.statusDot} />
                 {getStatusLabel(source.status)}
               </span>
-            </button>
+            </div>
+            <span className={styles.sourceOrigin} title={source.origin}>
+              {getSourceOriginLabel(source)}
+            </span>
             <div className={styles.rowActions}>
               <button
                 className={classNames(controls.button, controls.iconButton)}

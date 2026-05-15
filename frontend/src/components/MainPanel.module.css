@@ -217,7 +217,6 @@
 }
 
 .section header span,
-.sourceRow span,
 .resultMeta span {
   color: var(--text-muted);
   font-size: 13px;
@@ -254,20 +253,21 @@
 }
 
 .sourceGrid {
-  padding: 18px;
+  padding: 16px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  gap: 10px;
   overflow: visible;
 }
 
 .sourceRow {
   min-width: 0;
-  min-height: 118px;
+  min-height: 104px;
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
@@ -294,56 +294,49 @@
     0 8px 18px oklch(35% 0.025 218 / 0.08);
 }
 
+.sourceRow:focus-visible {
+  outline: none;
+}
+
 .sourceRow strong,
 .resultRow strong {
   display: block;
   color: var(--text-strong);
   font-size: 14px;
-  margin-bottom: 3px;
+  margin-bottom: 1px;
 }
 
-.sourceCopy {
+.sourceCardHeader {
   min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.sourceCopy span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sourceCopy small {
-  color: var(--text-subtle);
-  font-size: 12px;
-}
-
-.sourceSelectButton {
-  min-width: 0;
-  width: 100%;
-  height: 100%;
-  padding: 16px 14px 16px 16px;
-  border: 0;
-  background: transparent;
-  color: inherit;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  text-align: left;
-  cursor: pointer;
+  gap: 10px;
 }
 
-.sourceSelectButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.56;
+.sourceIdentity {
+  min-width: 0;
+  display: block;
+}
+
+.sourceIdentity small {
+  display: block;
+  color: var(--text-subtle);
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+.sourceOrigin {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .sourceIcon {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -354,22 +347,28 @@
 }
 
 .rowActions {
-  padding-right: 12px;
+  margin-top: 2px;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
 }
 
 .status {
+  --source-status-bg: var(--status-bg);
+  --source-status-border: var(--status-border);
+  --source-status-text: var(--status-text);
+
   min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 4px 8px;
+  border: 1px solid var(--source-status-border);
   border-radius: 999px;
-  background: var(--status-bg);
-  color: var(--status-text);
+  background: var(--source-status-bg);
+  color: var(--source-status-text);
   font-size: 12px;
   font-weight: 650;
 }
@@ -383,12 +382,22 @@
 }
 
 .indexed {
-  color: var(--success);
+  --source-status-bg: var(--success-bg);
+  --source-status-border: var(--success-border);
+  --source-status-text: var(--success);
 }
 
 .indexing,
 .pending {
-  color: var(--warn);
+  --source-status-bg: var(--warn-bg);
+  --source-status-border: var(--warn-border);
+  --source-status-text: var(--warn);
+}
+
+.failed {
+  --source-status-bg: var(--danger-bg);
+  --source-status-border: var(--danger-border);
+  --source-status-text: var(--danger);
 }
 
 .documentRow,
@@ -690,11 +699,7 @@
   }
 
   .sourceRow {
-    grid-template-columns: 1fr;
-  }
-
-  .sourceSelectButton {
-    align-items: start;
+    min-height: auto;
   }
 
   .sourceArrow {
