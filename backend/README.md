@@ -9,7 +9,8 @@ localkit add-local PATH --name NAME
 localkit add-remote URL --include /docs/ --include /guide/ --max-depth 3 --max-pages 1000
 localkit list
 localkit index SOURCE_ID
-localkit search "query"
+localkit search DOCS_NAME "query"
+localkit show DOCS_NAME DOCUMENT
 localkit remove SOURCE_ID
 localkit serve --port 8000
 ```

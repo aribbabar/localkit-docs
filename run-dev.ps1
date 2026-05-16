@@ -180,15 +180,11 @@ function Stop-ManagedProcesses {
     }
 }
 
+$uvPath = Resolve-CmdCommand "uv" "Install uv from https://docs.astral.sh/uv/getting-started/installation/."
 $npmPath = Resolve-CmdCommand "npm" "Install Node.js from https://nodejs.org/."
-$backendEnvironment = @{}
-$backendVenvScripts = Join-Path $BackendDir ".venv\Scripts"
 
-if (Test-Path (Join-Path $backendVenvScripts "fastapi.exe")) {
-    $backendEnvironment["Path"] = "$backendVenvScripts;$env:Path"
-}
-else {
-    $null = Resolve-CmdCommand "fastapi" "Install the FastAPI CLI in your backend environment."
+if (-not $SkipInstall) {
+    Invoke-Checked "backend" $BackendDir "`"$uvPath`" sync"
 }
 
 if (-not $SkipInstall -and -not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
@@ -198,7 +194,7 @@ if (-not $SkipInstall -and -not (Test-Path (Join-Path $FrontendDir "node_modules
 Assert-PortAvailable "Backend" "127.0.0.1" $BackendPort
 Assert-PortAvailable "Frontend" "127.0.0.1" $FrontendPort
 
-$backendCommand = "fastapi run main.py --host 127.0.0.1 --port $BackendPort"
+$backendCommand = "`"$uvPath`" run fastapi run main.py --host 127.0.0.1 --port $BackendPort"
 $frontendCommand = "`"$npmPath`" run dev -- --host 127.0.0.1 --port $FrontendPort --strictPort"
 
 Write-Host "Starting LocalKit Docs..."
@@ -207,7 +203,7 @@ Write-Host "Frontend: http://127.0.0.1:$FrontendPort"
 Write-Host "Press Ctrl+C to stop both processes."
 
 try {
-    $backendProcess = Start-ManagedProcess "backend" $BackendDir $backendCommand $backendEnvironment
+    $backendProcess = Start-ManagedProcess "backend" $BackendDir $backendCommand
     $Processes += $backendProcess
     Wait-HttpOk "backend" "http://127.0.0.1:$BackendPort/health" $backendProcess $BackendStartupTimeoutSeconds
 

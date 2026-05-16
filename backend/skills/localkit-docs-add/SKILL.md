@@ -26,5 +26,5 @@ localkit add-remote https://nextjs.org/docs --name next-js-docs --include /docs/
 ## Notes
 
 - Ollama should be running for default embeddings.
-- Prefer `LOCALKIT_OLLAMA_EMBED_MODEL=nomic-embed-text:latest`.
+- Prefer `LOCALKIT_OLLAMA_EMBED_MODEL=nomic-embed-text`, which matches the backend default.
 - Reindex after changing embedding model or search behavior.

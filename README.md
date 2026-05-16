@@ -2,21 +2,23 @@
 
 LocalKit Docs is a local-first documentation index for coding agents.
 
-It lets you add local folders or remote documentation sites, index them with local embeddings, and search them from a CLI. Agents can use the included skill to search your indexed docs before answering framework, library, or project-specific questions.
+It lets you add local folders or remote documentation sites, index them with local embeddings, and search them from a CLI. Agents can use the included skills to search indexed docs before answering framework, library, API, or project-specific questions.
 
 The backend is a Python CLI/API. The frontend is an optional local UI.
 
-## Setup
+## Requirements
 
-Install `uv`.
+- `uv` for the Python CLI and backend
+- Node.js and npm for the optional frontend
+- Ollama running locally for the default embedding provider
 
-Windows:
+Install `uv`:
 
 ```powershell
 winget install astral-sh.uv
 ```
 
-macOS/Linux:
+On macOS/Linux:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -28,11 +30,15 @@ Install Ollama and pull the default embedding model:
 ollama pull nomic-embed-text
 ```
 
-Install the CLI from this repo:
+## Install The CLI
+
+Install from the remote Git repo:
 
 ```bash
-uv tool install "git+https://github.com/YOUR_ORG/localkit-docs.git#subdirectory=backend"
+uv tool install "git+https://github.com/OWNER/localkit-docs.git#subdirectory=backend"
 ```
+
+Replace `OWNER` with the GitHub owner for this repo. This checkout does not currently have a Git remote configured, so the README cannot name the final URL yet.
 
 Check that it works:
 
@@ -40,82 +46,79 @@ Check that it works:
 localkit list
 ```
 
-Add documentation:
+## Use The CLI
+
+Add local documentation:
 
 ```bash
 localkit add-local ./docs --name my-docs
 ```
 
-or:
+Add remote documentation:
 
 ```bash
-localkit add-remote https://example.com/docs --include /docs/ --max-depth 3 --max-pages 1000
+localkit add-remote https://example.com/docs --name example-docs --include /docs/ --max-depth 3 --max-pages 1000
 ```
 
-Search:
-
-```bash
-localkit search "how do I configure authentication?"
-```
-
-## Agent Skill
-
-Create a skill folder:
-
-```text
-~/.codex/skills/localkit-docs/
-```
-
-or:
-
-```text
-~/.agents/skills/localkit-docs/
-```
-
-Create `SKILL.md` in that folder:
-
-````markdown
----
-name: localkit-docs
-description: Use when an agent needs local CLI-first documentation search through LocalKit Docs.
----
-
-# LocalKit Docs
-
-Use the `localkit` CLI to search indexed documentation before answering library, framework, or project-doc questions.
-
-Check indexed sources:
+List indexed sources:
 
 ```bash
 localkit list
 ```
 
-Add local documentation:
+Search one source by name or id:
 
 ```bash
-localkit add-local PATH --name NAME
+localkit search my-docs "how do I configure authentication?"
 ```
 
-Add remote documentation:
+Show a full document from a source:
 
 ```bash
-localkit add-remote URL --include /docs/ --include /guide/ --exclude "*changelog*" --max-depth 3 --max-pages 1000
+localkit show my-docs path/to/page.md
 ```
 
-Search docs:
+## Updates
+
+If you installed the CLI with `uv tool install` from Git, update it with:
 
 ```bash
-localkit search "specific question" --limit 8
+uv tool upgrade localkit-docs
 ```
 
-Prefer search results over memory, and mention source paths when useful.
-````
+For maintainers, the simplest release flow is:
 
-Restart your agent after adding the skill.
+1. Push changes to the default branch.
+2. Bump `backend/pyproject.toml` when the CLI behavior changes.
+3. Create a GitHub release or tag with the same version.
+4. Tell users to run `uv tool upgrade localkit-docs`.
+
+Users who want update notifications can watch GitHub releases for the repo. Avoid adding automatic update checks to the CLI unless the project later needs that extra network behavior.
+
+## Agent Skills
+
+This repo includes ready-made skills under `backend/skills/`:
+
+- `localkit-docs-add` for adding, indexing, listing, and removing sources
+- `localkit-docs-search` for searching and showing indexed docs
+
+Copy the folders you want into one of your agent skill directories:
+
+```text
+~/.codex/skills/
+```
+
+or:
+
+```text
+~/.agents/skills/
+```
+
+Restart your agent after adding or updating skills.
 
 ## Local Development
 
-Run the backend and frontend together:
+On Windows, run the backend and frontend together:
 
 ```powershell
 .\run-dev.ps1
@@ -127,15 +130,17 @@ Optional ports:
 .\run-dev.ps1 -BackendPort 8000 -FrontendPort 5173
 ```
 
-Backend:
+The script runs `uv sync` for the backend and `npm install` for the frontend when needed. Use `-SkipInstall` if dependencies are already installed.
+
+Backend only:
 
 ```bash
 cd backend
 uv sync
-fastapi dev main.py
+uv run localkit serve --port 8000
 ```
 
-Frontend:
+Frontend only:
 
 ```bash
 cd frontend
