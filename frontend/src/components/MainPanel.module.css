@@ -268,11 +268,24 @@
 }
 
 .sourceGrid {
+  flex: 1;
   padding: 16px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 10px;
   overflow: visible;
+}
+
+.sourceGridEmpty {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.sourceGridEmpty .emptyState {
+  min-height: 0;
 }
 
 .sourceRow {

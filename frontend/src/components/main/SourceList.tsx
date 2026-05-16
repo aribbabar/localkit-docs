@@ -57,7 +57,7 @@ export function SourceList({
           </span>
         </div>
       </header>
-      <div className={classNames(styles.list, styles.sourceGrid)}>
+      <div className={classNames(styles.list, styles.sourceGrid, sources.length === 0 && styles.sourceGridEmpty)}>
         {sources.map((source) => (
           <article
             className={styles.sourceRow}
