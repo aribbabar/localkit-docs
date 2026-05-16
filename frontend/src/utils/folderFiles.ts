@@ -4,6 +4,34 @@ type DataTransferItemWithEntry = DataTransferItem & {
   webkitGetAsEntry?: () => FileSystemEntry | null
 }
 
+const IGNORED_DIRS = new Set([
+  '.git',
+  '.hg',
+  '.localkit-docs',
+  '.next',
+  '.venv',
+  '__pycache__',
+  'dist',
+  'node_modules',
+])
+
+const SUPPORTED_SUFFIXES = new Set([
+  '.css',
+  '.html',
+  '.js',
+  '.json',
+  '.jsx',
+  '.md',
+  '.mdx',
+  '.py',
+  '.rst',
+  '.ts',
+  '.tsx',
+  '.txt',
+  '.yaml',
+  '.yml',
+])
+
 export function getFileRelativePath(file: File): string {
   const fileWithPath = file as File & { webkitRelativePath?: string }
   return normalizeRelativePath(fileWithPath.webkitRelativePath || file.name)
@@ -94,10 +122,12 @@ function getFolderFileKey(item: FolderFile): string {
 }
 
 async function readEntryFiles(entry: FileSystemEntry): Promise<FolderFile[]> {
+  if (isIgnoredPath(entry.fullPath || entry.name)) return []
+
   if (entry.isFile) {
     const file = await readFileEntry(entry as FileSystemFileEntry)
     const relativePath = normalizeRelativePath(entry.fullPath || file.name)
-    return relativePath ? [{ file, relativePath }] : []
+    return isSupportedPath(relativePath) ? [{ file, relativePath }] : []
   }
 
   if (!entry.isDirectory) return []
@@ -133,4 +163,21 @@ function normalizeRelativePath(path: string): string {
     .split('/')
     .filter((part) => part && part !== '.' && part !== '..')
     .join('/')
+}
+
+export function isSelectableDocsPath(path: string): boolean {
+  const relativePath = normalizeRelativePath(path)
+  return !isIgnoredPath(relativePath) && isSupportedPath(relativePath)
+}
+
+function isIgnoredPath(path: string): boolean {
+  return normalizeRelativePath(path)
+    .split('/')
+    .some((part) => IGNORED_DIRS.has(part))
+}
+
+function isSupportedPath(path: string): boolean {
+  const filename = normalizeRelativePath(path).split('/').pop() ?? ''
+  const dotIndex = filename.lastIndexOf('.')
+  return dotIndex > -1 && SUPPORTED_SUFFIXES.has(filename.slice(dotIndex).toLowerCase())
 }

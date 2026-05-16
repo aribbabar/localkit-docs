@@ -18,6 +18,7 @@ import {
   getDroppedFolderFiles,
   getFileRelativePath,
   inferDocsName,
+  isSelectableDocsPath,
   mergeFolderFiles,
 } from './utils/folderFiles'
 import { createOperationId } from './utils/operations'
@@ -299,7 +300,7 @@ function App() {
     const newFiles = Array.from(files)
       .map((file) => {
         const relativePath = getFileRelativePath(file)
-        return relativePath ? { file, relativePath } : null
+        return isSelectableDocsPath(relativePath) ? { file, relativePath } : null
       })
       .filter((file): file is FolderFile => file !== null)
 

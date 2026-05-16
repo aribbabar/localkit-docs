@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 from collections.abc import Iterable
 from pathlib import Path
@@ -79,10 +80,8 @@ def copy_local_source(
 
 
 def iter_indexable_files(root: Path) -> Iterable[Path]:
-    for path in root.rglob("*"):
-        if any(part in IGNORED_DIRS for part in path.relative_to(root).parts):
-            continue
-        if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES:
+    for path in _walk_files(root):
+        if is_indexable_file_path(path):
             yield path
 
 
@@ -91,12 +90,21 @@ def read_text_file(path: Path) -> str:
 
 
 def _iter_copyable_files(root: Path) -> Iterable[Path]:
-    for path in root.rglob("*"):
-        if any(part in IGNORED_DIRS for part in path.relative_to(root).parts):
-            continue
-        if path.is_file():
+    for path in _walk_files(root):
+        if is_indexable_file_path(path):
             yield path
 
 
-def _ignore_names(_: str, names: list[str]) -> set[str]:
-    return {name for name in names if name in IGNORED_DIRS}
+def _walk_files(root: Path) -> Iterable[Path]:
+    for current_root, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(name for name in dirnames if name not in IGNORED_DIRS)
+        for filename in sorted(filenames):
+            yield Path(current_root) / filename
+
+
+def is_indexable_file_path(path: Path) -> bool:
+    return path.suffix.lower() in SUPPORTED_SUFFIXES
+
+
+def is_ignored_relative_path(path: Path) -> bool:
+    return any(part in IGNORED_DIRS for part in path.parts)

@@ -20,6 +20,7 @@ from core.progress import ProgressCallback, ProgressEvent
 from core.search import SearchService
 from core.services import build_container
 from core.sources import SourceService
+from ingest.files import is_ignored_relative_path, is_indexable_file_path
 from storage.repositories import SourceRecord
 
 
@@ -162,7 +163,18 @@ def create_app() -> FastAPI:
             if not files:
                 raise ValueError("No files were uploaded.")
 
-            relative_paths = [_safe_upload_path(file.filename or "uploaded-file") for file in files]
+            upload_items = [
+                (file, relative_path)
+                for file in files
+                if not is_ignored_relative_path(
+                    relative_path := _safe_upload_path(file.filename or "uploaded-file")
+                )
+                and is_indexable_file_path(relative_path)
+            ]
+            if not upload_items:
+                raise ValueError("No supported documentation files were uploaded.")
+
+            relative_paths = [relative_path for _, relative_path in upload_items]
             source_name = name or _infer_upload_name(relative_paths)
             source_id = stable_id("local-upload", source_name)
             destination = container.settings.sources_dir / "local" / slugify(source_name, source_id) / "content"
@@ -179,11 +191,11 @@ def create_app() -> FastAPI:
                         "status": "running",
                         "message": "Saving uploaded files",
                         "current": 0,
-                        "total": len(files),
+                        "total": len(upload_items),
                     }
                 )
             for file_index, (upload, relative_path) in enumerate(
-                zip(files, relative_paths, strict=True),
+                upload_items,
                 start=1,
             ):
                 target = (destination / relative_path).resolve()
@@ -211,7 +223,7 @@ def create_app() -> FastAPI:
                     origin=f"browser-upload:{source_name}",
                     stored_path=str(destination),
                     status="pending",
-                    options={"uploaded_files": len(files)},
+                    options={"uploaded_files": len(upload_items)},
                 )
             )
             stats = await indexer.index_source(source, progress=progress) if should_index else None

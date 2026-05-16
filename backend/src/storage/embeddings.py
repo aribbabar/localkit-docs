@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import hashlib
-import math
 from abc import ABC, abstractmethod
+from typing import Any
 
 import httpx
 
@@ -27,41 +26,31 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         return f"ollama:{self.model}"
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        embeddings: list[list[float]] = []
+        if not texts:
+            return []
+
+        normalized_texts = [_normalize_embedding_text(text) for text in texts]
         async with httpx.AsyncClient(timeout=60) as client:
-            for text in texts:
-                response = await client.post(
-                    f"{self.base_url}/api/embeddings",
-                    json={"model": self.model, "prompt": _normalize_embedding_text(text)},
-                )
-                response.raise_for_status()
-                payload = response.json()
-                embeddings.append([float(value) for value in payload["embedding"]])
-        return embeddings
-
-
-class DeterministicEmbeddingProvider(EmbeddingProvider):
-    """Small test-only embedding provider selected explicitly by env/config."""
-
-    def __init__(self, dimensions: int = 64) -> None:
-        self.dimensions = dimensions
-
-    @property
-    def identity(self) -> str:
-        return f"deterministic:{self.dimensions}"
-
-    async def embed(self, texts: list[str]) -> list[list[float]]:
-        return [self._embed_one(text) for text in texts]
-
-    def _embed_one(self, text: str) -> list[float]:
-        vector = [0.0] * self.dimensions
-        for token in _normalize_embedding_text(text).lower().split():
-            digest = hashlib.sha256(token.encode("utf-8")).digest()
-            index = int.from_bytes(digest[:2], "big") % self.dimensions
-            vector[index] += 1.0
-        norm = math.sqrt(sum(value * value for value in vector)) or 1.0
-        return [value / norm for value in vector]
+            response = await client.post(
+                f"{self.base_url}/api/embed",
+                json={"model": self.model, "input": normalized_texts},
+            )
+            response.raise_for_status()
+            return _parse_embeddings_payload(response.json(), expected_count=len(texts))
 
 
 def _normalize_embedding_text(text: str) -> str:
     return text.replace("\n", " ")
+
+
+def _parse_embeddings_payload(payload: dict[str, Any], expected_count: int) -> list[list[float]]:
+    raw_embeddings = payload.get("embeddings")
+    if not isinstance(raw_embeddings, list):
+        raise ValueError("Ollama embedding response did not include embeddings.")
+
+    embeddings = [[float(value) for value in embedding] for embedding in raw_embeddings]
+    if len(embeddings) != expected_count:
+        raise ValueError(
+            f"Ollama returned {len(embeddings)} embeddings for {expected_count} input texts."
+        )
+    return embeddings
