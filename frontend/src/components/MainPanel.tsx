@@ -1,5 +1,5 @@
 import type { FormEvent, RefObject } from 'react'
-import { FiDatabase, FiFolder, FiRefreshCw, FiServer, FiZap } from 'react-icons/fi'
+import { FiDatabase, FiFolder, FiServer, FiZap } from 'react-icons/fi'
 import { DocumentList } from './main/DocumentList'
 import { Preview } from './main/Preview'
 import { ResultList } from './main/ResultList'
@@ -18,7 +18,6 @@ type MainPanelProps = {
   localDocsMaxFiles: number
   onBackToSources: () => void
   onOpenDocument: (documentId: string) => void
-  onRefreshSources: () => void
   onSaveLocalDocsMaxFiles: (value: number) => void
   onReindex: (sourceId: string) => void
   onRemove: (sourceId: string) => void
@@ -40,7 +39,6 @@ export function MainPanel({
   localDocsMaxFiles,
   onBackToSources,
   onOpenDocument,
-  onRefreshSources,
   onSaveLocalDocsMaxFiles,
   onReindex,
   onRemove,
@@ -75,27 +73,6 @@ export function MainPanel({
   if (route.page === 'home') {
     return (
       <section className={styles.panel}>
-        <div className={styles.homeHero}>
-          <div className={styles.homeIntro}>
-            <span className={styles.eyebrow}>
-              <FiZap aria-hidden="true" />
-              Local-first docs search
-            </span>
-            <h1>Documentation index</h1>
-            <p>
-              Bring local folders and remote docs into one searchable workspace for coding agents.
-            </p>
-          </div>
-          <button
-            className={styles.refreshButton}
-            type="button"
-            onClick={onRefreshSources}
-            disabled={busy !== null}
-          >
-            <FiRefreshCw aria-hidden="true" />
-            Refresh
-          </button>
-        </div>
         <div className={styles.overviewGrid} aria-label="Source overview">
           <div className={styles.overviewItem}>
             <FiDatabase aria-hidden="true" />

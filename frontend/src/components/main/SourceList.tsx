@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { FiClock, FiFolder, FiRefreshCw, FiServer, FiTrash2 } from 'react-icons/fi'
 import { ImSpinner2 } from 'react-icons/im'
 import { classNames } from '../../utils/classNames'
@@ -12,6 +13,11 @@ type SourceListProps = {
   onRemove: (sourceId: string) => void
   onSelectSource: (sourceId: string) => void
   sources: Source[]
+}
+
+type PendingAction = {
+  kind: 'reindex' | 'remove'
+  source: Source
 }
 
 function getSourceLabel(source: Source) {
@@ -45,6 +51,25 @@ export function SourceList({
   onSelectSource,
   sources,
 }: SourceListProps) {
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+  const confirmTitle =
+    pendingAction?.kind === 'remove' ? `Delete ${pendingAction.source.name}?` : `Reindex ${pendingAction?.source.name}?`
+  const confirmBody =
+    pendingAction?.kind === 'remove'
+      ? 'This removes the source and its indexed documents from the local index.'
+      : 'This refreshes the source index and may replace the currently indexed documents.'
+  const confirmLabel = pendingAction?.kind === 'remove' ? 'Delete index' : 'Reindex source'
+
+  function confirmPendingAction() {
+    if (!pendingAction) return
+    if (pendingAction.kind === 'remove') {
+      onRemove(pendingAction.source.id)
+    } else {
+      onReindex(pendingAction.source.id)
+    }
+    setPendingAction(null)
+  }
+
   return (
     <section className={classNames(styles.section, styles.sourceSection)}>
       <header>
@@ -89,38 +114,42 @@ export function SourceList({
                 {getStatusLabel(source.status)}
               </span>
             </div>
-            <span className={styles.sourceOrigin} title={source.origin}>
-              {getSourceOriginLabel(source)}
-            </span>
-            <div className={styles.rowActions}>
-              <button
-                className={classNames(controls.button, controls.iconButton)}
-                type="button"
-                title="Reindex"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onReindex(source.id)
-                }}
-                disabled={busy !== null}
-              >
-                {busy === `index:${source.id}` ? (
-                  <ImSpinner2 className={controls.spin} size={16} />
-                ) : (
-                  <FiRefreshCw size={16} />
-                )}
-              </button>
-              <button
-                className={classNames(controls.button, controls.iconButton, controls.danger)}
-                type="button"
-                title="Remove"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onRemove(source.id)
-                }}
-                disabled={busy !== null}
-              >
-                <FiTrash2 size={16} />
-              </button>
+            <div className={styles.sourceCardFooter}>
+              <span className={styles.sourceOrigin} title={source.origin}>
+                {getSourceOriginLabel(source)}
+              </span>
+              <div className={styles.rowActions} aria-label={`${source.name} actions`}>
+                <button
+                  className={classNames(controls.button, controls.iconButton)}
+                  type="button"
+                  title="Reindex source"
+                  aria-label={`Reindex ${source.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setPendingAction({ kind: 'reindex', source })
+                  }}
+                  disabled={busy !== null}
+                >
+                  {busy === `index:${source.id}` ? (
+                    <ImSpinner2 className={controls.spin} size={16} />
+                  ) : (
+                    <FiRefreshCw size={16} />
+                  )}
+                </button>
+                <button
+                  className={classNames(controls.button, controls.iconButton, controls.danger)}
+                  type="button"
+                  title="Delete index"
+                  aria-label={`Delete ${source.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setPendingAction({ kind: 'remove', source })
+                  }}
+                  disabled={busy !== null}
+                >
+                  <FiTrash2 size={16} />
+                </button>
+              </div>
             </div>
           </article>
         ))}
@@ -132,6 +161,43 @@ export function SourceList({
           </div>
         ) : null}
       </div>
+      {pendingAction ? (
+        <div className={styles.confirmOverlay} role="presentation" onClick={() => setPendingAction(null)}>
+          <div
+            aria-labelledby="source-action-title"
+            aria-describedby="source-action-description"
+            aria-modal="true"
+            className={styles.confirmDialog}
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="source-action-title">{confirmTitle}</h3>
+            <p id="source-action-description">
+              {confirmBody}
+              <span>{getSourceOriginLabel(pendingAction.source)}</span>
+            </p>
+            <div className={styles.confirmActions}>
+              <button
+                className={classNames(controls.button, controls.ghost)}
+                type="button"
+                onClick={() => setPendingAction(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className={classNames(
+                  controls.button,
+                  pendingAction.kind === 'remove' && controls.dangerButton,
+                )}
+                type="button"
+                onClick={confirmPendingAction}
+              >
+                {confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

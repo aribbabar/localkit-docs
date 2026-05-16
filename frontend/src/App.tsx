@@ -486,7 +486,6 @@ function App() {
         localDocsMaxFiles={localDocsMaxFiles}
         onBackToSources={navigateHome}
         onOpenDocument={openDocument}
-        onRefreshSources={refreshSources}
         onSaveLocalDocsMaxFiles={setLocalDocsMaxFiles}
         onReindex={reindex}
         onRemove={remove}

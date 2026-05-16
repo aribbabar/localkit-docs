@@ -128,6 +128,45 @@ function Wait-HttpOk {
     throw "$Name did not become ready at $Url within $TimeoutSeconds seconds."
 }
 
+function Get-PortOwnerDescription {
+    param(
+        [string]$HostAddress,
+        [int]$Port
+    )
+
+    $blockedAddresses = @($HostAddress, "0.0.0.0", "::", "::1")
+    $connection = Get-NetTCPConnection `
+        -LocalPort $Port `
+        -State Listen `
+        -ErrorAction SilentlyContinue |
+        Where-Object { $blockedAddresses -contains $_.LocalAddress } |
+        Select-Object -First 1
+
+    if (-not $connection) {
+        return $null
+    }
+
+    $process = Get-Process -Id $connection.OwningProcess -ErrorAction SilentlyContinue
+    if ($process) {
+        return "pid $($process.Id) ($($process.ProcessName))"
+    }
+
+    return "pid $($connection.OwningProcess)"
+}
+
+function Assert-PortAvailable {
+    param(
+        [string]$Name,
+        [string]$HostAddress,
+        [int]$Port
+    )
+
+    $owner = Get-PortOwnerDescription $HostAddress $Port
+    if ($owner) {
+        throw "$Name port $HostAddress`:$Port is already in use by $owner. Stop that process or pass a different -$($Name)Port value."
+    }
+}
+
 function Stop-ManagedProcesses {
     foreach ($process in $Processes) {
         if ($process -and -not $process.HasExited) {
@@ -156,8 +195,11 @@ if (-not $SkipInstall -and -not (Test-Path (Join-Path $FrontendDir "node_modules
     Invoke-Checked "frontend" $FrontendDir "`"$npmPath`" install"
 }
 
+Assert-PortAvailable "Backend" "127.0.0.1" $BackendPort
+Assert-PortAvailable "Frontend" "127.0.0.1" $FrontendPort
+
 $backendCommand = "fastapi run main.py --host 127.0.0.1 --port $BackendPort"
-$frontendCommand = "`"$npmPath`" run dev -- --host 127.0.0.1 --port $FrontendPort"
+$frontendCommand = "`"$npmPath`" run dev -- --host 127.0.0.1 --port $FrontendPort --strictPort"
 
 Write-Host "Starting LocalKit Docs..."
 Write-Host "Backend:  http://127.0.0.1:$BackendPort"
