@@ -35,10 +35,8 @@ ollama pull nomic-embed-text
 Install from the remote Git repo:
 
 ```bash
-uv tool install "git+https://github.com/OWNER/localkit-docs.git#subdirectory=backend"
+uv tool install "git+https://github.com/aribbabar/localkit-docs.git#subdirectory=backend"
 ```
-
-Replace `OWNER` with the GitHub owner for this repo. This checkout does not currently have a Git remote configured, so the README cannot name the final URL yet.
 
 Check that it works:
 
