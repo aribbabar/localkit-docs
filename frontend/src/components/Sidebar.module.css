@@ -20,7 +20,7 @@
 .consoleIntro {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   align-content: start;
   align-items: center;

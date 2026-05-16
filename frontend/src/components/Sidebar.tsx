@@ -43,7 +43,6 @@ export function Sidebar(props: SidebarProps) {
     <aside className={styles.sidebar}>
       <div className={styles.consoleIntro}>
         <Brand message={props.message} />
-        {props.activeProgress ? <ProgressPanel progress={props.activeProgress} /> : null}
         <button className={styles.settingsButton} type="button" onClick={props.onOpenSettings}>
           <FiSettings size={16} />
           Settings
@@ -57,6 +56,7 @@ export function Sidebar(props: SidebarProps) {
         <h2>Documentation index</h2>
         <p>Bring local folders and remote docs into one searchable workspace for coding agents.</p>
       </div>
+      {props.activeProgress ? <ProgressPanel progress={props.activeProgress} /> : null}
       <div className={styles.ingestGrid}>
         <LocalDocsForm
           busy={props.busy}
