@@ -20,6 +20,7 @@ class SearchResult:
     path: str
     title: str
     source_url: str | None = None
+    section_path: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -178,6 +179,8 @@ class SearchService:
                 continue
 
             selected_chunks = self._select_structured_chunks(chunks, cluster_ordinals)
+            primary_ordinal = _metadata_int(primary_hit.metadata.get("ordinal"))
+            primary_chunk = chunks_by_ordinal.get(primary_ordinal) if primary_ordinal is not None else None
             if not selected_chunks:
                 context_ordinals = range(
                     max(0, min(cluster_ordinals) - self.context_window),
@@ -203,6 +206,11 @@ class SearchService:
                         path=str(primary_hit.metadata.get("path", "")),
                         title=str(primary_hit.metadata.get("title", "")),
                         source_url=self._source_url_for_hit(primary_hit),
+                        section_path=(
+                            _section_path(primary_chunk)
+                            if primary_chunk
+                            else _metadata_section_path(primary_hit.metadata)
+                        ),
                     ),
                     document_id=document_id,
                 )
@@ -270,6 +278,7 @@ class SearchService:
                 path=str(hit.metadata.get("path", "")),
                 title=str(hit.metadata.get("title", "")),
                 source_url=self._source_url_for_hit(hit),
+                section_path=_metadata_section_path(hit.metadata),
             ),
             document_id=document_id or hit.chunk_id,
         )
@@ -462,6 +471,15 @@ def _section_path(chunk: dict[str, object]) -> list[str]:
     path = metadata.get("section_path", [])
     if isinstance(path, list):
         return [str(part) for part in path if str(part)]
+    return []
+
+
+def _metadata_section_path(metadata: dict[str, object]) -> list[str]:
+    path = metadata.get("section_path", [])
+    if isinstance(path, list):
+        return [str(part) for part in path if str(part)]
+    if isinstance(path, str) and path.strip():
+        return [part.strip() for part in path.split(">") if part.strip()]
     return []
 
 

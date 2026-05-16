@@ -110,6 +110,14 @@ def search(
         str | None,
         typer.Option("--path", help="Restrict results to paths containing this value or matching this glob."),
     ] = None,
+    best_docs: Annotated[
+        bool,
+        typer.Option("--best-docs", help="Return at most one result per document for broad discovery queries."),
+    ] = False,
+    require_match: Annotated[
+        bool,
+        typer.Option("--require-match", help="Only return results whose text, title, path, or section matches a query term."),
+    ] = False,
 ) -> None:
     output = _validate_output(output)
     container, _, _, search_service, _ = _services()
@@ -118,14 +126,21 @@ def search(
         raise typer.BadParameter(f"Docs source not found by name or id: {docs}")
     resolved_source_id = source.id
     search_query = query
+    requested_limit = min(max(limit * 4, limit), 40) if best_docs or require_match else limit
     results = asyncio.run(
         search_service.search(
             search_query,
-            limit=limit,
+            limit=requested_limit,
             source_id=resolved_source_id,
             path_filter=path,
         )
     )
+    if require_match:
+        results = [result for result in results if _matched_terms(search_query, result)]
+    if best_docs:
+        results = _best_document_results(results, limit, search_query)
+    else:
+        results = results[:limit]
     if output == "json":
         typer.echo(
             json.dumps(
@@ -133,7 +148,12 @@ def search(
                     "source": _source_payload(source, container.documents.source_stats(source.id)),
                     "query": search_query,
                     "path_filter": path,
-                    "results": [_search_result_payload(result, chars, query=search_query) for result in results],
+                    "best_docs": best_docs,
+                    "require_match": require_match,
+                    "results": [
+                        _search_result_payload(result, chars, query=search_query, rank=index)
+                        for index, result in enumerate(results, start=1)
+                    ],
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -304,6 +324,47 @@ def _query_terms(query: str) -> list[str]:
     ]
 
 
+def _best_document_results(results, limit: int, query: str):
+    ranked_results = sorted(
+        results,
+        key=lambda result: (len(_matched_terms(query, result)), result.score),
+        reverse=True,
+    )
+    selected = []
+    seen_document_ids: set[str] = set()
+    for result in ranked_results:
+        key = result.document_id or result.chunk_id
+        if key in seen_document_ids:
+            continue
+        selected.append(result)
+        seen_document_ids.add(key)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _matched_terms(query: str, result) -> list[str]:
+    terms = _query_terms(query)
+    if not terms:
+        return []
+    haystack = "\n".join(
+        [
+            str(result.title or ""),
+            str(result.path or ""),
+            str(result.text or ""),
+            " ".join(result.section_path or []),
+        ]
+    ).lower()
+    return [term for term in terms if _term_matches(term, haystack)]
+
+
+def _term_matches(term: str, haystack: str) -> bool:
+    if re.fullmatch(r"[a-z0-9_]+", term):
+        pattern = rf"(?<![a-z0-9_]){re.escape(term)}(?![a-z0-9_])"
+        return re.search(pattern, haystack) is not None
+    return term in haystack
+
+
 def _move_to_boundary(text: str, index: int) -> int:
     newline = text.rfind("\n", 0, index)
     if newline >= max(0, index - 160):
@@ -328,8 +389,9 @@ def _source_payload(source, stats: dict[str, int]) -> dict[str, object]:
     }
 
 
-def _search_result_payload(result, chars: int, *, query: str | None = None) -> dict[str, object]:
+def _search_result_payload(result, chars: int, *, query: str | None = None, rank: int | None = None) -> dict[str, object]:
     return {
+        "rank": rank,
         "chunk_id": result.chunk_id,
         "document_id": result.document_id,
         "score": result.score,
@@ -337,6 +399,8 @@ def _search_result_payload(result, chars: int, *, query: str | None = None) -> d
         "path": result.path,
         "source_url": result.source_url,
         "title": result.title,
+        "section_path": result.section_path or [],
+        "matched_terms": _matched_terms(query or "", result),
         "text": _clip_text(result.text, chars, query=query),
     }
 
