@@ -1,4 +1,11 @@
-from ingest.cleaning import clean_document_text, extract_source_url, infer_document_title
+from ingest.cleaning import (
+    clean_document_text,
+    extract_metadata_title,
+    extract_source_url,
+    infer_document_title,
+    normalize_title,
+    title_from_path,
+)
 
 
 def test_clean_document_text_removes_crawl_metadata_and_page_chrome() -> None:
@@ -42,5 +49,24 @@ Search...⌘K
 
     assert extract_source_url(raw) == "https://neon.com/docs/serverless/serverless-driver"
     assert infer_document_title(raw, "docs/serverless/serverless-driver/index.md") == (
-        "Neon serverless driver"
+        "Neon Serverless Driver"
     )
+
+
+def test_infer_document_title_prefers_normalized_metadata_title() -> None:
+    raw = """<!--
+source_url: https://example.com/docs/api-reference
+title: api reference: using the CLI & SDK
+depth: 2
+-->
+# Fallback Heading
+"""
+
+    assert extract_metadata_title(raw) == "API Reference: Using the CLI & SDK"
+    assert infer_document_title(raw, "docs/api-reference/index.md") == "API Reference: Using the CLI & SDK"
+
+
+def test_title_from_path_normalizes_local_doc_file_names() -> None:
+    assert title_from_path("guides/auth/README.md") == "Auth"
+    assert title_from_path("api-reference/oauth_setup.md") == "OAuth Setup"
+    assert normalize_title("connecting to neon from vercel") == "Connecting to Neon from Vercel"

@@ -1,12 +1,65 @@
 from __future__ import annotations
 
+import html
 import re
 from pathlib import Path
+
+
+ACRONYMS = {
+    "ai": "AI",
+    "api": "API",
+    "cli": "CLI",
+    "css": "CSS",
+    "faq": "FAQ",
+    "html": "HTML",
+    "http": "HTTP",
+    "https": "HTTPS",
+    "id": "ID",
+    "json": "JSON",
+    "llm": "LLM",
+    "mdx": "MDX",
+    "oauth": "OAuth",
+    "sdk": "SDK",
+    "sql": "SQL",
+    "ui": "UI",
+    "url": "URL",
+    "xml": "XML",
+}
+SMALL_WORDS = {
+    "a",
+    "an",
+    "and",
+    "as",
+    "at",
+    "but",
+    "by",
+    "for",
+    "from",
+    "in",
+    "into",
+    "nor",
+    "of",
+    "on",
+    "or",
+    "per",
+    "the",
+    "to",
+    "vs",
+    "via",
+    "with",
+}
 
 
 def extract_source_url(text: str) -> str | None:
     match = re.search(r"(?im)^\s*source_url:\s*(\S+)\s*$", text)
     return match.group(1).strip() if match else None
+
+
+def extract_metadata_title(text: str) -> str | None:
+    match = re.search(r"(?im)^\s*title:\s*(.+?)\s*$", text)
+    if not match:
+        return None
+    return normalize_title(match.group(1))
 
 
 def clean_document_text(text: str) -> str:
@@ -17,20 +70,52 @@ def clean_document_text(text: str) -> str:
 
 
 def infer_document_title(text: str, fallback: str) -> str:
+    metadata_title = extract_metadata_title(text)
+    if metadata_title:
+        return metadata_title
+
     cleaned = clean_document_text(text)
-    fallback_title = _title_from_path(fallback)
+    fallback_title = title_from_path(fallback)
     for line in cleaned.splitlines():
         stripped = line.strip()
         if not stripped:
             continue
         heading = re.match(r"^#{1,6}\s+(.+?)\s*$", stripped)
         if heading:
-            title = _clean_heading(heading.group(1))
+            title = normalize_title(_clean_heading(heading.group(1)))
             if title:
                 return title
         if _looks_like_content_title(stripped):
-            return stripped[:120]
+            return normalize_title(stripped[:120])
     return fallback_title or fallback
+
+
+def title_from_path(path: str) -> str:
+    stem = Path(path.replace("\\", "/")).stem
+    if stem.lower() in {"index", "readme"}:
+        parent = Path(path.replace("\\", "/")).parent.name
+        stem = parent or stem
+    return normalize_title(re.sub(r"[-_]+", " ", stem).strip())
+
+
+def normalize_title(value: str | None) -> str:
+    if not value:
+        return ""
+    value = html.unescape(value)
+    value = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", value)
+    value = re.sub(r"\[([^\]]*)\]\([^)]+\)", r"\1", value)
+    value = re.sub(r"<[^>]+>", " ", value)
+    value = re.sub(r"[`*_~]+", "", value)
+    value = re.sub(r"\s+", " ", value.strip().strip("#")).strip()
+    if not value:
+        return ""
+
+    words = value.split(" ")
+    titled = [
+        _title_word(word, force_capital=index in {0, len(words) - 1})
+        for index, word in enumerate(words)
+    ]
+    return " ".join(titled)
 
 
 def _strip_leading_metadata_comment(text: str) -> str:
@@ -131,9 +216,18 @@ def _looks_like_content_title(value: str) -> bool:
     return bool(re.search(r"[a-zA-Z]{3,}", value))
 
 
-def _title_from_path(path: str) -> str:
-    stem = Path(path.replace("\\", "/")).stem
-    if stem in {"index", "readme"}:
-        parent = Path(path.replace("\\", "/")).parent.name
-        stem = parent or stem
-    return re.sub(r"[-_]+", " ", stem).strip().title()
+def _title_word(word: str, *, force_capital: bool) -> str:
+    def replace(match: re.Match[str]) -> str:
+        token = match.group(0)
+        lowered = token.lower()
+        if lowered in ACRONYMS:
+            return ACRONYMS[lowered]
+        if lowered in SMALL_WORDS and not force_capital:
+            return lowered
+        if token.isupper() and len(token) > 1:
+            return token
+        if any(char.isupper() for char in token[1:]):
+            return token
+        return token[:1].upper() + token[1:].lower()
+
+    return re.sub(r"[A-Za-z][A-Za-z0-9']*", replace, word)

@@ -14,6 +14,7 @@ from urllib.parse import parse_qsl, urljoin, urlparse, urlunparse
 
 from core.ids import slugify
 from core.progress import ProgressCallback
+from ingest.cleaning import normalize_title
 
 DEFAULT_INCLUDE_PATTERNS: tuple[str, ...] = ("/docs/",)
 DOMAIN_INCLUDE_PATTERNS: tuple[str, ...] = ()
@@ -218,8 +219,10 @@ async def crawl_remote(
         atomic_write_text(output_path, build_saved_content(result, page_output))
 
         metadata = getattr(result, "metadata", {}) or {}
+        title = extract_result_title(result)
         record = {
             "url": result.url,
+            "title": title,
             "saved_path": str(output_path),
             "relative_path": page_output.relative_path,
             "success": bool(getattr(result, "success", False)),
@@ -680,9 +683,11 @@ def extract_page_output(result: Any) -> PageOutput:
 
 def build_saved_content(result: Any, page_output: PageOutput) -> str:
     metadata = getattr(result, "metadata", {}) or {}
+    title = extract_result_title(result)
     header_lines = [
         "<!--",
         f"source_url: {getattr(result, 'url', '')}",
+        f"title: {title}",
         f"status_code: {getattr(result, 'status_code', '')}",
         f"depth: {metadata.get('depth', '')}",
         f"saved_at: {utc_now_iso()}",
@@ -690,6 +695,27 @@ def build_saved_content(result: Any, page_output: PageOutput) -> str:
         "",
     ]
     return "\n".join(header_lines) + page_output.content
+
+
+def extract_result_title(result: Any) -> str:
+    metadata = getattr(result, "metadata", {}) or {}
+    candidates = [
+        metadata.get("title") if isinstance(metadata, dict) else None,
+        metadata.get("page_title") if isinstance(metadata, dict) else None,
+        getattr(result, "title", None),
+        _title_from_html(getattr(result, "cleaned_html", "") or ""),
+        _title_from_html(getattr(result, "html", "") or ""),
+    ]
+    for candidate in candidates:
+        title = normalize_title(str(candidate)) if candidate else ""
+        if title:
+            return title
+    return ""
+
+
+def _title_from_html(value: str) -> str:
+    match = re.search(r"(?is)<title[^>]*>(.*?)</title>", value)
+    return match.group(1) if match else ""
 
 
 def load_json(path: Path) -> dict[str, Any] | None:

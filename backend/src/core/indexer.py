@@ -8,7 +8,7 @@ from typing import Any
 from core.ids import stable_id
 from core.progress import ProgressCallback
 from ingest.chunking import chunk_text
-from ingest.cleaning import clean_document_text, extract_source_url, infer_document_title
+from ingest.cleaning import clean_document_text, extract_source_url, infer_document_title, title_from_path
 from ingest.files import iter_indexable_files, read_text_file
 from storage.embeddings import EmbeddingProvider
 from storage.repositories import DocumentRepository, SourceRecord, SourceRepository
@@ -87,7 +87,11 @@ class Indexer:
             text = clean_document_text(raw_text)
             content_hash = sha256(raw_text.encode("utf-8")).hexdigest()
             document_id = stable_id(source.id, relative_path, content_hash)
-            title = infer_document_title(raw_text, relative_path)
+            title = (
+                title_from_path(relative_path)
+                if source.kind == "local"
+                else infer_document_title(raw_text, relative_path)
+            )
             source_url = extract_source_url(raw_text)
             document_records.append(
                 {

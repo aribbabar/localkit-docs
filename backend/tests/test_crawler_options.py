@@ -1,7 +1,12 @@
+from types import SimpleNamespace
+
 from ingest.crawler import (
     DEFAULT_EXCLUDE_PATTERNS,
     DEFAULT_INCLUDE_PATTERNS,
+    PageOutput,
+    build_saved_content,
     default_include_patterns,
+    extract_result_title,
     matches_any_pattern,
     normalize_patterns,
     resolve_include_url_patterns,
@@ -54,3 +59,19 @@ def test_default_exclude_patterns_skip_common_non_docs_urls() -> None:
     assert matches_any_pattern("https://example.com/docs/changelog", DEFAULT_EXCLUDE_PATTERNS)
     assert matches_any_pattern("https://example.com/docs/build/index.html", DEFAULT_EXCLUDE_PATTERNS)
     assert matches_any_pattern("https://example.com/docs/package-lock.json", DEFAULT_EXCLUDE_PATTERNS)
+
+
+def test_saved_crawl_content_includes_normalized_page_title() -> None:
+    result = SimpleNamespace(
+        url="https://example.com/docs/api-reference",
+        status_code=200,
+        metadata={"title": "api reference for the HTTP SDK", "depth": 1},
+        cleaned_html="",
+        html="",
+    )
+    page_output = PageOutput("", ".md", "# Ignored Fallback", "raw_markdown")
+
+    saved = build_saved_content(result, page_output)
+
+    assert extract_result_title(result) == "API Reference for the HTTP SDK"
+    assert "title: API Reference for the HTTP SDK" in saved
