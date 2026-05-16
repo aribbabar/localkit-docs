@@ -10,6 +10,7 @@ import styles from './Sidebar.module.css'
 type SidebarProps = {
   activeProgress: OperationProgress | null
   busy: BusyTask
+  crawlScope: 'path' | 'domain'
   exclude: string
   folderFiles: FolderFile[]
   include: string
@@ -26,6 +27,7 @@ type SidebarProps = {
   remoteName: string
   remoteUrl: string
   setExclude: (value: string) => void
+  setCrawlScope: (value: 'path' | 'domain') => void
   setInclude: (value: string) => void
   setMaxDepth: (value: number) => void
   setMaxPages: (value: number) => void
@@ -59,6 +61,7 @@ export function Sidebar(props: SidebarProps) {
         />
         <RemoteDocsForm
           busy={props.busy}
+          crawlScope={props.crawlScope}
           exclude={props.exclude}
           include={props.include}
           maxDepth={props.maxDepth}
@@ -68,6 +71,7 @@ export function Sidebar(props: SidebarProps) {
           remoteName={props.remoteName}
           remoteUrl={props.remoteUrl}
           setExclude={props.setExclude}
+          setCrawlScope={props.setCrawlScope}
           setInclude={props.setInclude}
           setMaxDepth={props.setMaxDepth}
           setMaxPages={props.setMaxPages}

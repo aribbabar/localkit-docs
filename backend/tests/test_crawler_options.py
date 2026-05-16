@@ -1,9 +1,12 @@
 from ingest.crawler import (
     DEFAULT_EXCLUDE_PATTERNS,
     DEFAULT_INCLUDE_PATTERNS,
+    default_include_patterns,
     matches_any_pattern,
     normalize_patterns,
     resolve_include_url_patterns,
+    resolve_scope_prefix,
+    should_crawl_url,
 )
 
 
@@ -25,6 +28,26 @@ def test_include_patterns_default_to_docs_prefix() -> None:
     assert resolve_include_url_patterns("https://example.com/", DEFAULT_INCLUDE_PATTERNS) == [
         "/docs/*"
     ]
+
+
+def test_domain_scope_has_no_default_include_pattern() -> None:
+    assert default_include_patterns("domain") == ()
+    assert resolve_scope_prefix("https://docs.example.com/", (), "domain") == "https://docs.example.com"
+
+
+def test_path_patterns_match_url_paths_for_seeded_urls() -> None:
+    assert should_crawl_url(
+        "https://docs.example.com/guide/intro",
+        allowed_host="docs.example.com",
+        include_patterns=["/guide/*"],
+        exclude_patterns=[],
+    )
+    assert not should_crawl_url(
+        "https://docs.example.com/blog/intro",
+        allowed_host="docs.example.com",
+        include_patterns=["/guide/*"],
+        exclude_patterns=[],
+    )
 
 
 def test_default_exclude_patterns_skip_common_non_docs_urls() -> None:

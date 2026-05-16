@@ -16,6 +16,7 @@ from core.ids import slugify
 from core.progress import ProgressCallback
 
 DEFAULT_INCLUDE_PATTERNS: tuple[str, ...] = ("/docs/",)
+DOMAIN_INCLUDE_PATTERNS: tuple[str, ...] = ()
 DEFAULT_EXCLUDE_PATTERNS: tuple[str, ...] = (
     "*changelog*",
     "*change-log*",
@@ -47,12 +48,14 @@ DEFAULT_EXCLUDE_PATTERNS: tuple[str, ...] = (
 )
 
 PatternInput = str | Sequence[str] | None
+CrawlScope = str
 
 
 @dataclass(frozen=True)
 class CrawlOptions:
     include: PatternInput = None
     exclude: PatternInput = None
+    crawl_scope: CrawlScope = "path"
     max_depth: int = 3
     max_pages: int = 1000
     delay_seconds: float = 0.15
@@ -107,10 +110,10 @@ async def crawl_remote(
         ) from exc
 
     normalized_start = normalize_url(start_url)
-    include_patterns = normalize_patterns(options.include, DEFAULT_INCLUDE_PATTERNS)
+    include_patterns = normalize_patterns(options.include, default_include_patterns(options.crawl_scope))
     exclude_patterns = normalize_patterns(options.exclude, DEFAULT_EXCLUDE_PATTERNS)
     include_url_patterns = resolve_include_url_patterns(normalized_start, include_patterns)
-    scope_prefix = resolve_scope_prefix(normalized_start, include_patterns)
+    scope_prefix = resolve_scope_prefix(normalized_start, include_patterns, options.crawl_scope)
     output_dir = output_dir.resolve()
     pages_dir = output_dir / "pages"
     manifest_path = output_dir / "manifest.json"
@@ -133,6 +136,7 @@ async def crawl_remote(
         manifest = {
             "project_name": output_dir.name,
             "start_url": normalized_start,
+            "crawl_scope": options.crawl_scope,
             "scope_prefix": scope_prefix,
             "output_dir": str(output_dir),
             "pages_dir": str(pages_dir),
@@ -165,28 +169,23 @@ async def crawl_remote(
         filters.append(URLPatternFilter(patterns=list(exclude_patterns), reverse=True))
     filters.append(ContentTypeFilter(allowed_types=["text/html"]))
     filter_chain = FilterChain(filters)
-    deep_crawl_strategy = BFSDeepCrawlStrategy(
-        max_depth=options.max_depth,
-        max_pages=options.max_pages,
-        include_external=False,
-        filter_chain=filter_chain,
-        resume_state=resume_state,
-        on_state_change=persist_checkpoint,
-    )
     browser_config = BrowserConfig(
         headless=not options.show_browser,
         text_mode=options.text_mode,
         verbose=options.verbose,
     )
-    run_config = CrawlerRunConfig(
+    base_run_config = CrawlerRunConfig(
         cache_mode=CacheMode.ENABLED,
-        deep_crawl_strategy=deep_crawl_strategy,
         markdown_generator=DefaultMarkdownGenerator(options={"citations": True}),
         scraping_strategy=LXMLWebScrapingStrategy(),
         stream=True,
         verbose=options.verbose,
         exclude_external_links=True,
         exclude_social_media_links=True,
+        preserve_https_for_internal_links=True,
+        mean_delay=options.delay_seconds,
+        max_range=max(options.delay_seconds, 0.01),
+        page_timeout=int(options.timeout_seconds * 1000),
     )
 
     if progress:
@@ -202,48 +201,98 @@ async def crawl_remote(
         )
     save_manifest(status="starting")
 
-    async with AsyncWebCrawler(config=browser_config) as crawler:
-        stream = await crawler.arun(url=normalized_start, config=run_config)
-        async for result in stream:
-            if matches_any_pattern(str(getattr(result, "url", "")), exclude_patterns):
-                continue
-            page_output = extract_page_output(result)
-            relative_path = page_path_for_url(result.url, page_output.extension)
-            page_output.relative_path = relative_path.as_posix()
-            output_path = pages_dir / relative_path
-            atomic_write_text(output_path, build_saved_content(result, page_output))
+    async def save_result(result: Any) -> None:
+        result_url = str(getattr(result, "url", ""))
+        if not should_crawl_url(
+            result_url,
+            allowed_host=allowed_host,
+            include_patterns=include_url_patterns,
+            exclude_patterns=exclude_patterns,
+        ):
+            return
 
-            metadata = getattr(result, "metadata", {}) or {}
-            record = {
-                "url": result.url,
-                "saved_path": str(output_path),
-                "relative_path": page_output.relative_path,
-                "success": bool(getattr(result, "success", False)),
-                "status_code": getattr(result, "status_code", None),
-                "depth": metadata.get("depth"),
-                "score": metadata.get("score"),
-                "error_message": getattr(result, "error_message", None),
-                "markdown_kind": page_output.markdown_kind,
-                "updated_at": utc_now_iso(),
-            }
-            page_records[result.url] = record
-            save_manifest(status="running")
+        page_output = extract_page_output(result)
+        relative_path = page_path_for_url(result.url, page_output.extension)
+        page_output.relative_path = relative_path.as_posix()
+        output_path = pages_dir / relative_path
+        atomic_write_text(output_path, build_saved_content(result, page_output))
 
-            if progress:
-                progress(
-                    {
-                        "phase": "crawl",
-                        "status": "running",
-                        "message": "Saved page",
-                        "current": len(page_records),
-                        "total": options.max_pages,
-                        "current_item": page_output.relative_path,
-                    }
-                )
+        metadata = getattr(result, "metadata", {}) or {}
+        record = {
+            "url": result.url,
+            "saved_path": str(output_path),
+            "relative_path": page_output.relative_path,
+            "success": bool(getattr(result, "success", False)),
+            "status_code": getattr(result, "status_code", None),
+            "depth": metadata.get("depth"),
+            "score": metadata.get("score"),
+            "error_message": getattr(result, "error_message", None),
+            "markdown_kind": page_output.markdown_kind,
+            "updated_at": utc_now_iso(),
+        }
+        page_records[result.url] = record
+        save_manifest(status="running")
 
-    final_state = deep_crawl_strategy.export_state()
-    if final_state:
-        atomic_write_text(checkpoint_path, json.dumps(final_state, indent=2, ensure_ascii=False))
+        if progress:
+            progress(
+                {
+                    "phase": "crawl",
+                    "status": "running",
+                    "message": "Saved page",
+                    "current": len(page_records),
+                    "total": options.max_pages,
+                    "current_item": page_output.relative_path,
+                }
+            )
+
+    seeded_urls: list[str] = []
+    if options.crawl_scope == "domain":
+        seeded_urls = await discover_domain_urls(
+            allowed_host,
+            include_patterns=include_url_patterns,
+            exclude_patterns=exclude_patterns,
+            max_pages=options.max_pages,
+            fresh=options.fresh,
+            verbose=options.verbose,
+            progress=progress,
+        )
+
+    if seeded_urls:
+        if progress:
+            progress(
+                {
+                    "phase": "crawl",
+                    "status": "running",
+                    "message": f"Crawling {len(seeded_urls)} discovered URLs",
+                    "current": 0,
+                    "total": len(seeded_urls),
+                }
+            )
+        await crawl_seeded_urls(
+            seeded_urls,
+            browser_config=browser_config,
+            run_config=base_run_config,
+            delay_seconds=options.delay_seconds,
+            save_result=save_result,
+        )
+    else:
+        deep_crawl_strategy = BFSDeepCrawlStrategy(
+            max_depth=options.max_depth,
+            max_pages=options.max_pages,
+            include_external=False,
+            filter_chain=filter_chain,
+            resume_state=resume_state,
+            on_state_change=persist_checkpoint,
+        )
+        run_config = base_run_config.clone(deep_crawl_strategy=deep_crawl_strategy)
+        async with AsyncWebCrawler(config=browser_config) as crawler:
+            stream = await crawler.arun(url=normalized_start, config=run_config)
+            async for result in stream:
+                await save_result(result)
+
+        final_state = deep_crawl_strategy.export_state()
+        if final_state:
+            atomic_write_text(checkpoint_path, json.dumps(final_state, indent=2, ensure_ascii=False))
 
     save_manifest(status="completed", pages_crawled=len(page_records))
     saved_pages = sum(1 for record in page_records.values() if record.get("success"))
@@ -258,6 +307,127 @@ async def crawl_remote(
             }
         )
     return CrawlResult(project_dir=output_dir, pages_dir=pages_dir, saved_pages=saved_pages)
+
+
+async def discover_domain_urls(
+    allowed_host: str,
+    *,
+    include_patterns: Sequence[str],
+    exclude_patterns: Sequence[str],
+    max_pages: int,
+    fresh: bool,
+    verbose: bool,
+    progress: ProgressCallback | None,
+) -> list[str]:
+    try:
+        from crawl4ai import AsyncUrlSeeder, SeedingConfig
+    except ImportError:
+        return []
+
+    if progress:
+        progress(
+            {
+                "phase": "discovery",
+                "status": "running",
+                "message": "Discovering domain URLs from sitemap",
+                "current": 0,
+                "total": max_pages,
+                "current_item": allowed_host,
+            }
+        )
+
+    try:
+        async with AsyncUrlSeeder() as seeder:
+            config = SeedingConfig(
+                source="sitemap",
+                pattern="*",
+                max_urls=max_pages,
+                force=fresh,
+                verbose=verbose,
+                filter_nonsense_urls=True,
+            )
+            discovered = await seeder.urls(allowed_host, config)
+    except Exception as exc:  # noqa: BLE001 - sitemap discovery is an optimization; deep crawl is fallback.
+        if progress:
+            progress(
+                {
+                    "phase": "discovery",
+                    "status": "running",
+                    "message": f"Sitemap discovery unavailable; falling back to deep crawl: {exc}",
+                    "current": 0,
+                    "total": max_pages,
+                    "current_item": allowed_host,
+                }
+            )
+        return []
+
+    urls: list[str] = []
+    seen: set[str] = set()
+    for item in discovered:
+        if isinstance(item, str):
+            url = item
+        elif isinstance(item, dict):
+            status = item.get("status")
+            if status not in {None, "valid", "unknown"}:
+                continue
+            url = str(item.get("url", ""))
+        else:
+            continue
+
+        if not should_crawl_url(
+            url,
+            allowed_host=allowed_host,
+            include_patterns=include_patterns,
+            exclude_patterns=exclude_patterns,
+        ):
+            continue
+        if url in seen:
+            continue
+
+        urls.append(url)
+        seen.add(url)
+        if len(urls) >= max_pages:
+            break
+
+    if progress:
+        progress(
+            {
+                "phase": "discovery",
+                "status": "running",
+                "message": f"Discovered {len(urls)} crawlable URLs",
+                "current": len(urls),
+                "total": max_pages,
+                "current_item": allowed_host,
+            }
+        )
+    return urls
+
+
+async def crawl_seeded_urls(
+    urls: Sequence[str],
+    *,
+    browser_config: Any,
+    run_config: Any,
+    delay_seconds: float,
+    save_result: Any,
+) -> None:
+    from crawl4ai import AsyncWebCrawler, RateLimiter
+    from crawl4ai.async_dispatcher import MemoryAdaptiveDispatcher
+
+    dispatcher = MemoryAdaptiveDispatcher(
+        memory_threshold_percent=80.0,
+        check_interval=1.0,
+        max_session_permit=6,
+        rate_limiter=RateLimiter(
+            base_delay=(delay_seconds, max(delay_seconds * 2, delay_seconds + 0.01)),
+            max_delay=30.0,
+            max_retries=3,
+        ),
+    )
+    async with AsyncWebCrawler(config=browser_config) as crawler:
+        stream = await crawler.arun_many(urls=list(urls), config=run_config, dispatcher=dispatcher)
+        async for result in stream:
+            await save_result(result)
 
 
 def ensure_subprocess_capable_event_loop() -> None:
@@ -310,7 +480,15 @@ def normalize_patterns(value: PatternInput, defaults: Sequence[str] = ()) -> tup
     return tuple(pattern.strip() for pattern in raw_patterns if pattern.strip())
 
 
-def resolve_scope_prefix(start_url: str, include: PatternInput) -> str:
+def default_include_patterns(crawl_scope: CrawlScope) -> tuple[str, ...]:
+    return DOMAIN_INCLUDE_PATTERNS if crawl_scope == "domain" else DEFAULT_INCLUDE_PATTERNS
+
+
+def resolve_scope_prefix(start_url: str, include: PatternInput, crawl_scope: CrawlScope = "path") -> str:
+    if crawl_scope == "domain":
+        parsed = urlparse(start_url)
+        return f"{parsed.scheme}://{parsed.netloc}"
+
     include_patterns = normalize_patterns(include)
     if not include_patterns:
         return infer_scope_prefix(start_url)
@@ -350,7 +528,26 @@ def looks_like_pattern(value: str) -> bool:
 
 def matches_any_pattern(url: str, patterns: Sequence[str]) -> bool:
     normalized_url = url.lower()
-    return any(fnmatch.fnmatch(normalized_url, pattern.lower()) for pattern in patterns)
+    parsed_path = urlparse(url).path.lower()
+    return any(
+        fnmatch.fnmatch(normalized_url, pattern.lower()) or fnmatch.fnmatch(parsed_path, pattern.lower())
+        for pattern in patterns
+    )
+
+
+def should_crawl_url(
+    url: str,
+    *,
+    allowed_host: str,
+    include_patterns: Sequence[str],
+    exclude_patterns: Sequence[str],
+) -> bool:
+    parsed = urlparse(url)
+    if parsed.hostname != allowed_host:
+        return False
+    if include_patterns and not matches_any_pattern(url, include_patterns):
+        return False
+    return not matches_any_pattern(url, exclude_patterns)
 
 
 def infer_project_name(start_url: str) -> str:

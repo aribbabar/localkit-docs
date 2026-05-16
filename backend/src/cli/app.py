@@ -59,9 +59,14 @@ def add_remote(
     ] = None,
     max_depth: Annotated[int, typer.Option("--max-depth")] = 3,
     max_pages: Annotated[int, typer.Option("--max-pages")] = 1000,
+    scope: Annotated[
+        str,
+        typer.Option("--scope", help="Crawl scope: path or domain. Domain mode can crawl an entire host."),
+    ] = "path",
     delay: Annotated[float, typer.Option("--delay", help="Delay between page requests in seconds.")] = 0.15,
     index: Annotated[bool, typer.Option(help="Index immediately after crawling.")] = True,
 ) -> None:
+    scope = _validate_crawl_scope(scope)
     container, source_service, indexer, _, _ = _services()
     progress = _progress_echo()
     source = asyncio.run(
@@ -70,6 +75,7 @@ def add_remote(
             name=name,
             include=include,
             exclude=exclude,
+            crawl_scope=scope,
             max_depth=max_depth,
             max_pages=max_pages,
             delay_seconds=delay,
@@ -248,6 +254,13 @@ def _validate_output(output: str) -> str:
     normalized = output.strip().lower()
     if normalized not in {"text", "json"}:
         raise typer.BadParameter("Output format must be 'text' or 'json'.")
+    return normalized
+
+
+def _validate_crawl_scope(scope: str) -> str:
+    normalized = scope.strip().lower()
+    if normalized not in {"path", "domain"}:
+        raise typer.BadParameter("Crawl scope must be 'path' or 'domain'.")
     return normalized
 
 

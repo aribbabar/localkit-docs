@@ -149,6 +149,54 @@
   gap: 10px;
 }
 
+.selectWrap {
+  position: relative;
+  display: block;
+}
+
+.selectWrap::after {
+  content: "";
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  pointer-events: none;
+  transform: translateY(-65%) rotate(45deg);
+}
+
+.scopeSelect {
+  width: 100%;
+  height: 38px;
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--input);
+  color: var(--text-strong);
+  padding: 0 34px 0 11px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 560;
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.scopeSelect:hover {
+  border-color: var(--border-strong);
+  background: var(--input-hover);
+}
+
+.scopeSelect:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .patternTextarea {
   min-height: 66px;
   border: 1px solid var(--border);
@@ -163,9 +211,20 @@
   resize: vertical;
 }
 
+.patternTextarea:disabled {
+  background: var(--panel-quiet);
+  color: var(--text-subtle);
+  cursor: not-allowed;
+  resize: none;
+}
+
 .patternTextarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.disabledField {
+  color: var(--text-subtle);
 }
 
 .formActions {

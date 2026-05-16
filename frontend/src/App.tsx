@@ -35,7 +35,17 @@ import styles from './App.module.css'
 const DEFAULT_LOCAL_DOCS_MAX_FILES = 10000
 const LOCAL_DOCS_MAX_FILES_KEY = 'localkit.localDocsMaxFiles'
 const REMOTE_CRAWL_SETTINGS_KEY = 'localkit.remoteCrawlSettings'
-const DEFAULT_REMOTE_CRAWL_SETTINGS = {
+
+type CrawlScope = 'path' | 'domain'
+type RemoteCrawlSettings = {
+  crawlScope: CrawlScope
+  excludePatterns: string[]
+  includePatterns: string[]
+  maxDepth: number
+  maxPages: number
+}
+
+const DEFAULT_REMOTE_CRAWL_SETTINGS: RemoteCrawlSettings = {
   excludePatterns: [
     '*changelog*',
     '*change-log*',
@@ -65,13 +75,14 @@ const DEFAULT_REMOTE_CRAWL_SETTINGS = {
     '*.tar.gz',
     '*.tgz',
   ],
+  crawlScope: 'path',
   includePatterns: ['/docs/'],
   maxDepth: 3,
   maxPages: 1000,
 }
 
-type RemoteCrawlSettings = typeof DEFAULT_REMOTE_CRAWL_SETTINGS
 type RemoteCrawlForm = {
+  crawlScope: CrawlScope
   exclude: string
   include: string
   maxDepth: number
@@ -133,6 +144,7 @@ function readRemoteCrawlSettings(): RemoteCrawlSettings {
       excludePatterns: Array.isArray(savedSettings.excludePatterns)
         ? savedSettings.excludePatterns.filter((pattern): pattern is string => typeof pattern === 'string')
         : fallback.excludePatterns,
+      crawlScope: savedSettings.crawlScope === 'domain' ? 'domain' : fallback.crawlScope,
       includePatterns: Array.isArray(savedSettings.includePatterns)
         ? savedSettings.includePatterns.filter((pattern): pattern is string => typeof pattern === 'string')
         : fallback.includePatterns,
@@ -146,6 +158,7 @@ function readRemoteCrawlSettings(): RemoteCrawlSettings {
 
 function createRemoteCrawlForm(settings: RemoteCrawlSettings = readRemoteCrawlSettings()): RemoteCrawlForm {
   return {
+    crawlScope: settings.crawlScope,
     exclude: formatPatterns(settings.excludePatterns),
     include: formatPatterns(settings.includePatterns),
     maxDepth: settings.maxDepth,
@@ -158,6 +171,7 @@ function persistRemoteCrawlForm(settings: RemoteCrawlForm) {
     REMOTE_CRAWL_SETTINGS_KEY,
     JSON.stringify({
       excludePatterns: parsePatternInput(settings.exclude),
+      crawlScope: settings.crawlScope,
       includePatterns: parsePatternInput(settings.include),
       maxDepth: settings.maxDepth,
       maxPages: settings.maxPages,
@@ -328,6 +342,15 @@ function App() {
   function updateRemoteCrawlForm(update: Partial<RemoteCrawlForm>) {
     setRemoteCrawlForm((currentSettings) => {
       const nextSettings = { ...currentSettings, ...update }
+      if (
+        update.crawlScope === 'domain' &&
+        parsePatternInput(currentSettings.include).join('\n') === DEFAULT_REMOTE_CRAWL_SETTINGS.includePatterns.join('\n')
+      ) {
+        nextSettings.include = ''
+      }
+      if (update.crawlScope === 'path' && !currentSettings.include.trim()) {
+        nextSettings.include = formatPatterns(DEFAULT_REMOTE_CRAWL_SETTINGS.includePatterns)
+      }
       persistRemoteCrawlForm(nextSettings)
       return nextSettings
     })
@@ -361,8 +384,9 @@ function App() {
         await createRemoteSource({
           url: remoteUrl,
           name: remoteName || null,
+          crawlScope: remoteCrawlForm.crawlScope,
           exclude: parsePatternInput(remoteCrawlForm.exclude),
-          include: parsePatternInput(remoteCrawlForm.include),
+          include: remoteCrawlForm.crawlScope === 'domain' ? [] : parsePatternInput(remoteCrawlForm.include),
           maxPages: remoteCrawlForm.maxPages,
           maxDepth: remoteCrawlForm.maxDepth,
           operationId,
@@ -429,6 +453,7 @@ function App() {
           activeProgress={activeProgress}
           busy={busy}
           folderFiles={folderFiles}
+          crawlScope={remoteCrawlForm.crawlScope}
           exclude={remoteCrawlForm.exclude}
           include={remoteCrawlForm.include}
           indexedSources={indexedSources}
@@ -444,6 +469,7 @@ function App() {
           remoteName={remoteName}
           remoteUrl={remoteUrl}
           setExclude={(exclude) => updateRemoteCrawlForm({ exclude })}
+          setCrawlScope={(crawlScope) => updateRemoteCrawlForm({ crawlScope })}
           setInclude={(include) => updateRemoteCrawlForm({ include })}
           setMaxDepth={(maxDepth) => updateRemoteCrawlForm({ maxDepth: clampInteger(maxDepth, 1, 20) })}
           setMaxPages={(maxPages) => updateRemoteCrawlForm({ maxPages: clampInteger(maxPages, 1, 5000) })}

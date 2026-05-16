@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 from pydantic import BaseModel, Field
 
@@ -19,6 +19,10 @@ class RemoteSourceRequest(BaseModel):
     name: str | None = None
     include: PatternList = Field(default=None, description="Only crawl URLs matching these patterns.")
     exclude: PatternList = Field(default=None, description="Skip URLs matching these patterns.")
+    crawl_scope: Literal["path", "domain"] = Field(
+        default="path",
+        description="Use 'domain' to crawl any matching page on the starting URL's host.",
+    )
     max_depth: int = 3
     max_pages: int = 1000
     delay_seconds: float = 0.15

@@ -7,6 +7,7 @@ import styles from '../Sidebar.module.css'
 
 type RemoteDocsFormProps = {
   busy: BusyTask
+  crawlScope: 'path' | 'domain'
   exclude: string
   include: string
   maxDepth: number
@@ -16,6 +17,7 @@ type RemoteDocsFormProps = {
   remoteName: string
   remoteUrl: string
   setExclude: (value: string) => void
+  setCrawlScope: (value: 'path' | 'domain') => void
   setInclude: (value: string) => void
   setMaxDepth: (value: number) => void
   setMaxPages: (value: number) => void
@@ -25,6 +27,7 @@ type RemoteDocsFormProps = {
 
 export function RemoteDocsForm({
   busy,
+  crawlScope,
   exclude,
   include,
   maxDepth,
@@ -34,12 +37,15 @@ export function RemoteDocsForm({
   remoteName,
   remoteUrl,
   setExclude,
+  setCrawlScope,
   setInclude,
   setMaxDepth,
   setMaxPages,
   setRemoteName,
   setRemoteUrl,
 }: RemoteDocsFormProps) {
+  const includeDisabled = crawlScope === 'domain'
+
   return (
     <form className={styles.sourceForm} onSubmit={onAddRemote}>
       <div className={styles.sourceFormHeader}>
@@ -72,11 +78,26 @@ export function RemoteDocsForm({
         />
       </label>
       <label>
+        Scope
+        <span className={styles.selectWrap}>
+          <select
+            className={styles.scopeSelect}
+            value={crawlScope}
+            onChange={(event) => setCrawlScope(event.target.value === 'domain' ? 'domain' : 'path')}
+          >
+            <option value="path">Docs path</option>
+            <option value="domain">Entire domain</option>
+          </select>
+        </span>
+      </label>
+      <label className={includeDisabled ? styles.disabledField : undefined}>
         Include patterns
         <textarea
           className={styles.patternTextarea}
-          value={include}
+          value={includeDisabled ? '' : include}
           onChange={(event) => setInclude(event.target.value)}
+          disabled={includeDisabled}
+          placeholder={includeDisabled ? 'Not used for entire-domain crawls' : undefined}
           rows={2}
           spellCheck={false}
         />

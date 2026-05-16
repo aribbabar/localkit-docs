@@ -8,9 +8,10 @@ from core.ids import slugify, stable_id
 from core.progress import ProgressCallback
 from ingest.crawler import (
     DEFAULT_EXCLUDE_PATTERNS,
-    DEFAULT_INCLUDE_PATTERNS,
+    CrawlScope,
     CrawlOptions,
     crawl_remote,
+    default_include_patterns,
     infer_remote_name,
     normalize_patterns,
 )
@@ -52,6 +53,7 @@ class SourceService:
         name: str | None = None,
         include: str | Sequence[str] | None = None,
         exclude: str | Sequence[str] | None = None,
+        crawl_scope: CrawlScope = "path",
         max_depth: int = 3,
         max_pages: int = 1000,
         delay_seconds: float = 0.15,
@@ -63,11 +65,12 @@ class SourceService:
         project_dir = self.sources_dir / "remote" / slugify(source_name, source_id)
         if project_dir.exists() and overwrite:
             shutil.rmtree(project_dir)
-        include_patterns = normalize_patterns(include, DEFAULT_INCLUDE_PATTERNS)
+        include_patterns = normalize_patterns(include, default_include_patterns(crawl_scope))
         exclude_patterns = normalize_patterns(exclude, DEFAULT_EXCLUDE_PATTERNS)
         options = CrawlOptions(
             include=include_patterns,
             exclude=exclude_patterns,
+            crawl_scope=crawl_scope,
             max_depth=max_depth,
             max_pages=max_pages,
             delay_seconds=delay_seconds,
@@ -83,6 +86,7 @@ class SourceService:
             options={
                 "include": list(include_patterns),
                 "exclude": list(exclude_patterns),
+                "crawl_scope": crawl_scope,
                 "max_depth": max_depth,
                 "max_pages": max_pages,
                 "delay_seconds": delay_seconds,

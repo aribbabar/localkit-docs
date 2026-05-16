@@ -13,6 +13,7 @@ type SearchResponse = {
 }
 
 type RemoteSourceInput = {
+  crawlScope: 'path' | 'domain'
   exclude: string[]
   include: string[]
   maxDepth: number
@@ -61,6 +62,7 @@ export async function uploadLocalSource({
 }
 
 export async function createRemoteSource({
+  crawlScope,
   exclude,
   include,
   maxDepth,
@@ -77,6 +79,7 @@ export async function createRemoteSource({
       name,
       include,
       exclude,
+      crawl_scope: crawlScope,
       max_pages: maxPages,
       max_depth: maxDepth,
       delay_seconds: 0.15,
