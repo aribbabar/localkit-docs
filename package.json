@@ -1,0 +1,8 @@
+{
+  "name": "localkit-docs-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:skip-install": "node scripts/dev.mjs --skip-install"
+  }
+}

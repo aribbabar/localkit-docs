@@ -1,17 +1,21 @@
 ---
 name: localkit-docs-search
-description: Use when an agent needs to query indexed documentation in this repository's LocalKit Docs backend through the localkit CLI. Trigger before answering framework, library, API, or project documentation questions when relevant docs may be indexed locally.
+description: Use when an agent needs to query indexed documentation through the localkit CLI. Trigger before answering framework, library, API, or project documentation questions when relevant docs may be indexed locally.
 ---
 
 # LocalKit Docs Search
 
-Run from `backend/`. The CLI searches one indexed source at a time. Prefer
-`localkit` when the CLI is installed; in a source checkout where `localkit` is
-not on `PATH`, use `uv run localkit` for the same commands.
+The CLI searches one indexed source at a time. Prefer the installed `localkit`
+command and run it from any working directory. By default, it uses the shared
+user-level index at `~/.localkit-docs`, which is the same index used by the local
+frontend/backend unless `LOCALKIT_DATA_DIR` is overridden.
+
+If `localkit` is not on `PATH` and this LocalKit Docs source checkout is
+available, run the same commands from `backend/` with `uv run localkit ...`.
 
 ```powershell
 $LK = "localkit"
-# If that is not installed, run commands as:
+# If localkit is not installed and you are inside the LocalKit Docs checkout:
 uv run localkit list --output json
 ```
 
@@ -129,6 +133,8 @@ localkit show "neon" "docs/guides/vercel-connection-methods/index.md" --query "a
   contains the actionable detail or inspect the referenced local source file.
 - If search snippets look polluted with page navigation, ads, or legal footer
   text, reindex the source so the latest cleaner indexing pipeline is applied.
+- Do not set `LOCALKIT_DATA_DIR` unless the user explicitly keeps the index in a
+  custom location.
 - If another docs CLI fails because of a stale Node/native-module cache, prefer
-  this repo's `uv run localkit ...` flow from `backend/` before spending time on
-  environment repair.
+  `localkit` or this repo's `uv run localkit ...` flow from `backend/` before
+  spending time on environment repair.

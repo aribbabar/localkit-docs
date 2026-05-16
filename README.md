@@ -44,6 +44,44 @@ Check that it works:
 localkit list
 ```
 
+## Run The App
+
+For the simplest local UI workflow, clone the repo and run the app from the repo root:
+
+```bash
+npm run dev
+```
+
+That command starts both services:
+
+- Backend API: `http://127.0.0.1:8000`
+- Frontend UI: `http://127.0.0.1:5173`
+
+It also runs `uv sync` for the backend and `npm install` for the frontend when needed. The frontend is configured automatically to use the backend started by the same command.
+
+Use these environment variables if you need different ports:
+
+```bash
+LOCALKIT_BACKEND_PORT=8010 LOCALKIT_FRONTEND_PORT=5174 npm run dev
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:LOCALKIT_BACKEND_PORT = "8010"
+$env:LOCALKIT_FRONTEND_PORT = "5174"
+npm run dev
+```
+
+LocalKit stores its index in `~/.localkit-docs` by default. That means the frontend backend, the globally installed `localkit` command, and `uv run localkit` from this checkout all point at the same index unless you override `LOCALKIT_DATA_DIR`.
+
+When using the CLI from the same checkout without installing it globally, run it through `uv` from `backend/`:
+
+```bash
+cd backend
+uv run localkit list
+```
+
 ## Use The CLI
 
 Add local documentation:
@@ -114,9 +152,23 @@ or:
 
 Restart your agent after adding or updating skills.
 
+The skills expect the `localkit` command on `PATH`. With the default `~/.localkit-docs` data directory, agents can run commands such as `localkit list`, `localkit index SOURCE_ID`, and `localkit search DOCS_NAME "query"` from any project and hit the same local index used by the UI.
+
 ## Local Development
 
-On Windows, run the backend and frontend together:
+Run the backend and frontend together:
+
+```bash
+npm run dev
+```
+
+Skip dependency installation checks:
+
+```bash
+npm run dev:skip-install
+```
+
+On Windows, the PowerShell helper is also available:
 
 ```powershell
 .\run-dev.ps1

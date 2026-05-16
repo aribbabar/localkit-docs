@@ -14,9 +14,9 @@ def resolve_data_dir() -> Path:
     if configured:
         path = Path(configured).expanduser()
         if not path.is_absolute():
-            path = backend_root() / path
+            path = Path.cwd() / path
         return path.resolve()
-    return backend_root() / ".localkit-docs"
+    return (Path.home() / ".localkit-docs").resolve()
 
 
 @dataclass(frozen=True)
