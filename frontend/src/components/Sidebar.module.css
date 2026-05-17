@@ -106,6 +106,10 @@
   font-weight: 750;
 }
 
+.brand .brandMark {
+  color: white;
+}
+
 .brand h1 {
   margin: 0;
   font-size: 14px;

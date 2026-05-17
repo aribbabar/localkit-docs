@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { FormEvent, RefObject } from 'react'
 import {
   FiArrowLeft,
@@ -22,14 +22,6 @@ import controls from './controls.module.css'
 import styles from './MainPanel.module.css'
 
 type Route = { page: 'home' } | { page: 'settings' } | { page: 'source'; sourceId: string }
-type DocumentKindFilter = 'all' | 'markdown' | 'html' | 'json'
-
-const DOCUMENT_KIND_FILTERS: Array<{ label: string; value: DocumentKindFilter }> = [
-  { label: 'All', value: 'all' },
-  { label: 'Markdown', value: 'markdown' },
-  { label: 'HTML', value: 'html' },
-  { label: 'JSON', value: 'json' },
-]
 
 function getSourceKindLabel(source: Source | null): string {
   if (!source) return 'Loading'
@@ -42,20 +34,6 @@ function getStatusLabel(status: string | undefined): string {
   if (status === 'pending') return 'Pending'
   if (status === 'failed') return 'Failed'
   return status ?? 'Loading'
-}
-
-function getDocumentExtension(path: string): string {
-  const filename = path.split('/').pop() ?? path
-  const extension = filename.includes('.') ? filename.split('.').pop() : ''
-  return extension ? extension.toUpperCase() : 'DOC'
-}
-
-function getDocumentKind(path: string): DocumentKindFilter | 'other' {
-  const extension = getDocumentExtension(path).toLowerCase()
-  if (extension === 'md' || extension === 'mdx') return 'markdown'
-  if (extension === 'html' || extension === 'htm') return 'html'
-  if (extension === 'json') return 'json'
-  return 'other'
 }
 
 function formatRelativeDate(value: string | null | undefined): string {
@@ -119,7 +97,6 @@ export function MainPanel({
   setQuery,
   sources,
 }: MainPanelProps) {
-  const [documentKindFilter, setDocumentKindFilter] = useState<DocumentKindFilter>('all')
   const indexedSources = sources.filter((source) => source.status === 'indexed').length
   const localSources = sources.filter((source) => source.kind === 'local').length
   const remoteSources = sources.filter((source) => source.kind === 'remote').length
@@ -131,15 +108,12 @@ export function MainPanel({
     const normalizedQuery = query.trim().toLowerCase()
 
     return documents.filter((document) => {
-      const matchesKind =
-        documentKindFilter === 'all' || getDocumentKind(document.path) === documentKindFilter
-      if (!matchesKind) return false
       if (!normalizedQuery) return true
 
       const title = getDocumentTitle(document).toLowerCase()
       return title.includes(normalizedQuery) || document.path.toLowerCase().includes(normalizedQuery)
     })
-  }, [documentKindFilter, documents, query])
+  }, [documents, query])
 
   if (route.page === 'settings') {
     return (
@@ -278,29 +252,10 @@ export function MainPanel({
           />
         </form>
 
-        <div className={styles.documentTabs} role="tablist" aria-label="Document type filter">
-          {DOCUMENT_KIND_FILTERS.map((filter) => (
-            <button
-              className={classNames(
-                styles.documentTab,
-                documentKindFilter === filter.value && styles.documentTabActive,
-              )}
-              key={filter.value}
-              type="button"
-              role="tab"
-              aria-selected={documentKindFilter === filter.value}
-              onClick={() => setDocumentKindFilter(filter.value)}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
-
         <section className={styles.documentTable}>
           <div className={styles.documentTableHeader}>
             <span>Document</span>
             <span>Chunks</span>
-            <span>Type</span>
           </div>
           {visibleDocuments.map((document) => (
             <button
@@ -323,13 +278,12 @@ export function MainPanel({
                 </span>
               </span>
               <span>{getDocumentMeta(document).split(' · ')[0]}</span>
-              <span>{getDocumentExtension(document.path)}</span>
             </button>
           ))}
           {visibleDocuments.length === 0 ? (
             <div className={styles.documentTableEmpty}>
               <strong>No documents match this view</strong>
-              <span>Adjust the search text or switch document type.</span>
+              <span>Adjust the search text to broaden the document list.</span>
             </div>
           ) : null}
         </section>

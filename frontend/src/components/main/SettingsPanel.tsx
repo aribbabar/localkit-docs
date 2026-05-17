@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react'
-import { FiSave } from 'react-icons/fi'
+import { FiArrowLeft, FiSave } from 'react-icons/fi'
+import { classNames } from '../../utils/classNames'
 import controls from '../controls.module.css'
 import styles from '../MainPanel.module.css'
 
@@ -27,7 +28,8 @@ export function SettingsPanel({
           <h1>Settings</h1>
           <p>Adjust local ingestion limits for this browser.</p>
         </div>
-        <button className={styles.refreshButton} type="button" onClick={onBackToSources}>
+        <button className={classNames(controls.button, controls.ghost)} type="button" onClick={onBackToSources}>
+          <FiArrowLeft size={15} />
           Sources
         </button>
       </div>

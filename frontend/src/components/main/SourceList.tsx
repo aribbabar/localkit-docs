@@ -109,47 +109,45 @@ export function SourceList({
                 <strong>{source.name}</strong>
                 <small>{getSourceLabel(source)}</small>
               </span>
-              <span className={classNames(styles.status, styles[source.status])}>
-                <span className={styles.statusDot} />
-                {getStatusLabel(source.status)}
-              </span>
             </div>
-            <div className={styles.sourceCardFooter}>
-              <span className={styles.sourceOrigin} title={source.origin}>
-                {getSourceOriginLabel(source)}
-              </span>
-              <div className={styles.rowActions} aria-label={`${source.name} actions`}>
-                <button
-                  className={classNames(controls.button, controls.iconButton)}
-                  type="button"
-                  title="Reindex source"
-                  aria-label={`Reindex ${source.name}`}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setPendingAction({ kind: 'reindex', source })
-                  }}
-                  disabled={busy !== null}
-                >
-                  {busy === `index:${source.id}` ? (
-                    <ImSpinner2 className={controls.spin} size={16} />
-                  ) : (
-                    <FiRefreshCw size={16} />
-                  )}
-                </button>
-                <button
-                  className={classNames(controls.button, controls.iconButton, controls.danger)}
-                  type="button"
-                  title="Delete index"
-                  aria-label={`Delete ${source.name}`}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setPendingAction({ kind: 'remove', source })
-                  }}
-                  disabled={busy !== null}
-                >
-                  <FiTrash2 size={16} />
-                </button>
-              </div>
+            <span className={styles.sourceOrigin} title={source.origin}>
+              {getSourceOriginLabel(source)}
+            </span>
+            <span className={classNames(styles.status, styles[source.status])}>
+              <span className={styles.statusDot} />
+              {getStatusLabel(source.status)}
+            </span>
+            <div className={styles.rowActions} aria-label={`${source.name} actions`}>
+              <button
+                className={classNames(controls.button, controls.iconButton)}
+                type="button"
+                title="Reindex source"
+                aria-label={`Reindex ${source.name}`}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setPendingAction({ kind: 'reindex', source })
+                }}
+                disabled={busy !== null}
+              >
+                {busy === `index:${source.id}` ? (
+                  <ImSpinner2 className={controls.spin} size={16} />
+                ) : (
+                  <FiRefreshCw size={16} />
+                )}
+              </button>
+              <button
+                className={classNames(controls.button, controls.iconButton, controls.danger)}
+                type="button"
+                title="Delete index"
+                aria-label={`Delete ${source.name}`}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setPendingAction({ kind: 'remove', source })
+                }}
+                disabled={busy !== null}
+              >
+                <FiTrash2 size={16} />
+              </button>
             </div>
           </article>
         ))}
