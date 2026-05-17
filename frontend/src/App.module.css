@@ -3,11 +3,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  overflow-x: clip;
   background: var(--bg);
   color: var(--text);
 }
 
 .focusWorkspace {
-  align-items: stretch;
-  background: var(--panel);
+  align-items: center;
+  background: var(--bg);
 }

@@ -1,4 +1,3 @@
-import { FiDatabase } from 'react-icons/fi'
 import styles from '../Sidebar.module.css'
 
 type BrandProps = {
@@ -8,7 +7,9 @@ type BrandProps = {
 export function Brand({ message }: BrandProps) {
   return (
     <div className={styles.brand}>
-      <FiDatabase size={24} />
+      <span className={styles.brandMark} aria-hidden="true">
+        LK
+      </span>
       <div>
         <h1>LocalKit Docs</h1>
         <span>{message}</span>

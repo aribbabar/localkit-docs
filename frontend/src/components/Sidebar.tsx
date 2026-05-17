@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import type { DragEvent, FormEvent } from 'react'
 import { FiSettings, FiZap } from 'react-icons/fi'
 import { ProgressPanel } from './ProgressPanel'
 import { Brand } from './sidebar/Brand'
 import { LocalDocsForm } from './sidebar/LocalDocsForm'
 import { RemoteDocsForm } from './sidebar/RemoteDocsForm'
+import { classNames } from '../utils/classNames'
 import type { BusyTask, FolderFile, OperationProgress } from '../types'
 import styles from './Sidebar.module.css'
 
@@ -39,6 +41,8 @@ type SidebarProps = {
 }
 
 export function Sidebar(props: SidebarProps) {
+  const [activeIngest, setActiveIngest] = useState<'local' | 'remote'>('local')
+
   return (
     <aside className={styles.sidebar}>
       <div className={styles.consoleIntro}>
@@ -57,35 +61,58 @@ export function Sidebar(props: SidebarProps) {
         <p>Bring local folders and remote docs into one searchable workspace for coding agents.</p>
       </div>
       {props.activeProgress ? <ProgressPanel progress={props.activeProgress} /> : null}
-      <div className={styles.ingestGrid}>
-        <LocalDocsForm
-          busy={props.busy}
-          folderFiles={props.folderFiles}
-          onAddUploadedFolder={props.onAddUploadedFolder}
-          onFolderDrop={props.onFolderDrop}
-          onSelectFolderFiles={props.onSelectFolderFiles}
-          setUploadedFolderName={props.setUploadedFolderName}
-          uploadedFolderName={props.uploadedFolderName}
-        />
-        <RemoteDocsForm
-          busy={props.busy}
-          crawlScope={props.crawlScope}
-          exclude={props.exclude}
-          include={props.include}
-          maxDepth={props.maxDepth}
-          maxPages={props.maxPages}
-          onAddRemote={props.onAddRemote}
-          onResetRemoteCrawlSettings={props.onResetRemoteCrawlSettings}
-          remoteName={props.remoteName}
-          remoteUrl={props.remoteUrl}
-          setExclude={props.setExclude}
-          setCrawlScope={props.setCrawlScope}
-          setInclude={props.setInclude}
-          setMaxDepth={props.setMaxDepth}
-          setMaxPages={props.setMaxPages}
-          setRemoteName={props.setRemoteName}
-          setRemoteUrl={props.setRemoteUrl}
-        />
+      <div className={styles.ingestTabs} role="tablist" aria-label="Documentation source type">
+        <button
+          className={classNames(styles.ingestTab, activeIngest === 'local' && styles.ingestTabActive)}
+          type="button"
+          role="tab"
+          aria-selected={activeIngest === 'local'}
+          onClick={() => setActiveIngest('local')}
+        >
+          Local
+        </button>
+        <button
+          className={classNames(styles.ingestTab, activeIngest === 'remote' && styles.ingestTabActive)}
+          type="button"
+          role="tab"
+          aria-selected={activeIngest === 'remote'}
+          onClick={() => setActiveIngest('remote')}
+        >
+          Remote
+        </button>
+      </div>
+      <div className={styles.ingestPanel}>
+        {activeIngest === 'local' ? (
+          <LocalDocsForm
+            busy={props.busy}
+            folderFiles={props.folderFiles}
+            onAddUploadedFolder={props.onAddUploadedFolder}
+            onFolderDrop={props.onFolderDrop}
+            onSelectFolderFiles={props.onSelectFolderFiles}
+            setUploadedFolderName={props.setUploadedFolderName}
+            uploadedFolderName={props.uploadedFolderName}
+          />
+        ) : (
+          <RemoteDocsForm
+            busy={props.busy}
+            crawlScope={props.crawlScope}
+            exclude={props.exclude}
+            include={props.include}
+            maxDepth={props.maxDepth}
+            maxPages={props.maxPages}
+            onAddRemote={props.onAddRemote}
+            onResetRemoteCrawlSettings={props.onResetRemoteCrawlSettings}
+            remoteName={props.remoteName}
+            remoteUrl={props.remoteUrl}
+            setExclude={props.setExclude}
+            setCrawlScope={props.setCrawlScope}
+            setInclude={props.setInclude}
+            setMaxDepth={props.setMaxDepth}
+            setMaxPages={props.setMaxPages}
+            setRemoteName={props.setRemoteName}
+            setRemoteUrl={props.setRemoteUrl}
+          />
+        )}
       </div>
     </aside>
   )

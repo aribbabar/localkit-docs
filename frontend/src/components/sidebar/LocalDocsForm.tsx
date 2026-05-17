@@ -104,7 +104,7 @@ export function LocalDocsForm({
         <input
           value={uploadedFolderName}
           onChange={(event) => setUploadedFolderName(event.target.value)}
-          placeholder="library-docs"
+          placeholder="e.g. library-docs"
         />
       </label>
       <button className={controls.button} type="submit" disabled={busy !== null || folderFiles.length === 0}>

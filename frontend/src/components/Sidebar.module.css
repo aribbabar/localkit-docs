@@ -1,33 +1,25 @@
 .sidebar {
   position: relative;
-  width: min(100%, 1040px);
+  width: min(100vw, var(--page-max-width));
+  min-width: 0;
   background: transparent;
-  padding: 32px 24px 30px;
+  padding: 32px var(--page-gutter) 20px;
   display: flex;
   flex-direction: column;
-  gap: 26px;
-}
-
-.sidebar::after {
-  content: "";
-  position: absolute;
-  right: 24px;
-  bottom: 0;
-  left: 24px;
-  border-bottom: 1px solid var(--border);
+  gap: 20px;
 }
 
 .consoleIntro {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
+  gap: 16px;
   align-content: start;
   align-items: center;
 }
 
 .homeHero {
-  padding-top: 4px;
+  padding-top: 10px;
 }
 
 .eyebrow {
@@ -35,50 +27,95 @@
   align-items: center;
   gap: 8px;
   color: var(--accent-strong);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 750;
   line-height: 1.2;
   text-transform: uppercase;
 }
 
 .homeHero h2 {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   color: var(--text-strong);
-  font-size: 26px;
-  line-height: 1.08;
+  font-size: 24px;
+  line-height: 1.12;
 }
 
 .homeHero p {
-  margin: 10px 0 0;
+  max-width: 58ch;
+  margin: 8px 0 0;
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
-.ingestGrid {
+.ingestTabs {
   min-width: 0;
-  display: grid;
-  gap: 22px;
-  align-items: start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ingestTab {
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ingestTab:hover {
+  color: var(--text-strong);
+  background: var(--input-hover);
+}
+
+.ingestTabActive {
+  border-color: var(--border);
+  background: var(--panel);
+  color: var(--text-strong);
+  box-shadow: 0 1px 1px rgb(15 23 42 / 0.03);
+}
+
+.ingestPanel {
+  min-width: 0;
 }
 
 .brand {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   color: var(--text-strong);
 }
 
+.brandMark {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 750;
+}
+
 .brand h1 {
   margin: 0;
-  font-size: 28px;
-  line-height: 1.1;
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 .brand span,
 .metricGrid span {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .metricGrid {
@@ -107,17 +144,17 @@
 
 .settingsButton {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--input);
   color: var(--text-strong);
   display: inline-flex;
   gap: 8px;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
-  padding: 0 14px;
+  min-height: 30px;
+  padding: 0 12px;
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 650;
   cursor: pointer;
 }
@@ -135,12 +172,12 @@
   background: var(--panel);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .sourceForm h2 {
   color: var(--text-strong);
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1.2;
   margin: 0;
 }
@@ -153,9 +190,9 @@
 }
 
 .resetButton {
-  min-height: 28px;
+  min-height: 26px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-muted);
   display: inline-flex;
@@ -164,7 +201,7 @@
   gap: 6px;
   padding: 0 8px;
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 650;
   cursor: pointer;
 }
@@ -207,15 +244,15 @@
 
 .scopeSelect {
   width: 100%;
-  height: 38px;
+  height: 34px;
   appearance: none;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--input);
   color: var(--text-strong);
   padding: 0 34px 0 11px;
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 560;
   outline: none;
   cursor: pointer;
@@ -236,9 +273,9 @@
 }
 
 .patternTextarea {
-  min-height: 66px;
+  min-height: 62px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--input);
   color: var(--text-strong);
   padding: 9px 11px;
@@ -274,8 +311,8 @@
 }
 
 .dropzone {
-  min-height: 126px;
-  border: 1px dashed var(--border);
+  min-height: 158px;
+  border: 2px dashed var(--border);
   border-radius: 8px;
   background: var(--input);
   color: var(--text-muted);
@@ -283,7 +320,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
   padding: 16px;
   text-align: center;
   cursor: pointer;
@@ -306,18 +343,18 @@
 }
 
 .dropzone svg {
-  color: var(--accent);
+  color: var(--text-subtle);
 }
 
 .dropzone strong {
   color: var(--text-strong);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .dropzone span {
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.35;
 }
 
@@ -329,19 +366,16 @@
 
 @media (max-width: 860px) {
   .sidebar {
-    padding: 20px;
-  }
-
-  .sidebar::after {
-    right: 20px;
-    left: 20px;
-  }
-
-  .consoleIntro {
-    grid-template-columns: 1fr;
+    padding: 20px var(--page-gutter);
   }
 
   .homeHero h2 {
-    font-size: 28px;
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 560px) {
+  .consoleIntro {
+    grid-template-columns: 1fr;
   }
 }
